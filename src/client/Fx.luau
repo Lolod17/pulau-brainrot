@@ -84,8 +84,8 @@ local function burst(position: Vector3, color: Color3)
 
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Color = ColorSequence.new(color)
-	emitter.LightEmission = 1
-	emitter.LightInfluence = 0
+	emitter.LightEmission = 0.3
+	emitter.LightInfluence = 1
 	emitter.Size = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 1.6),
 		NumberSequenceKeypoint.new(1, 0),
@@ -94,7 +94,7 @@ local function burst(position: Vector3, color: Color3)
 		NumberSequenceKeypoint.new(0, 0.1),
 		NumberSequenceKeypoint.new(1, 1),
 	})
-	emitter.Lifetime = NumberRange.new(0.5, 0.9)
+	emitter.Lifetime = NumberRange.new(0.8, 1.4)
 	emitter.Speed = NumberRange.new(10, 22)
 	emitter.SpreadAngle = Vector2.new(180, 180)
 	emitter.Rate = 0
@@ -102,8 +102,8 @@ local function burst(position: Vector3, color: Color3)
 	emitter.RotSpeed = NumberRange.new(-180, 180)
 	emitter.Parent = anchor
 
-	emitter:Emit(28)
-	task.delay(1.2, function()
+	emitter:Emit(14)
+	task.delay(1.6, function()
 		anchor:Destroy()
 	end)
 end
@@ -328,11 +328,11 @@ function Fx.event(data: { [string]: any })
 	if kind == "wave" or kind == "storm" then
 		local frame = makeFlash()
 		if frame then
-			frame.BackgroundTransparency = 0.35
-			local tween = TweenService:Create(frame, TweenInfo.new(1.2), { BackgroundTransparency = 1 })
+			frame.BackgroundTransparency = 0.7
+			local tween = TweenService:Create(frame, TweenInfo.new(0.8), { BackgroundTransparency = 1 })
 			tween:Play()
 		end
-		screenShake(14, 0.8)
+		screenShake(8, 0.6)
 	end
 	local position = data.position
 	if typeof(position) == "Vector3" then

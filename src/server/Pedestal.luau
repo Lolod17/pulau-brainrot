@@ -89,10 +89,10 @@ local function makeRing(effect: Model, top: BasePart, radius: number, height: nu
 	local ring = Instance.new("Part")
 	ring.Name = "ShowcaseRing"
 	ring.Shape = Enum.PartType.Cylinder
-	ring.Size = Vector3.new(0.12, radius * 2, radius * 2)
+	ring.Size = Vector3.new(0.06, radius * 2, radius * 2)
 	ring.Color = color
-	ring.Material = Enum.Material.Neon
-	ring.Transparency = 0.15
+	ring.Material = Enum.Material.SmoothPlastic
+	ring.Transparency = 0.65
 	ring.Anchored = true
 	ring.CanCollide = false
 	ring.CanQuery = false
@@ -105,14 +105,14 @@ local function makeRing(effect: Model, top: BasePart, radius: number, height: nu
 	return { part = ring, spin = spin }
 end
 
-local EMITTER_BUDGET = 2
+local EMITTER_BUDGET = 1
 
 local function makeEmitter(parent: BasePart, name: string, color: Color3, rate: number, rising: boolean): ParticleEmitter
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Name = name
 	emitter.Color = ColorSequence.new(color)
-	emitter.LightEmission = 1
-	emitter.LightInfluence = 0
+	emitter.LightEmission = 0.2
+	emitter.LightInfluence = 1
 	emitter.Size = NumberSequence.new({
 		NumberSequenceKeypoint.new(0, 0.4),
 		NumberSequenceKeypoint.new(1, 0),
@@ -121,7 +121,7 @@ local function makeEmitter(parent: BasePart, name: string, color: Color3, rate: 
 		NumberSequenceKeypoint.new(0, 0.2),
 		NumberSequenceKeypoint.new(1, 1),
 	})
-	emitter.Lifetime = NumberRange.new(0.8, 1.4)
+	emitter.Lifetime = NumberRange.new(0.8, 1.2)
 	emitter.Rate = rate
 	if rising then
 		emitter.Speed = NumberRange.new(2.5, 4.5)
@@ -181,22 +181,22 @@ local function buildShowcase(visual: Visual, entry: Cast.Entry)
 
 	local emitterCount = 0
 	if tier >= 3 and emitterCount < EMITTER_BUDGET then
-		makeEmitter(anchor, "RisingMotes", color, 18, true)
+		makeEmitter(anchor, "RisingMotes", color, 12, true)
 		emitterCount += 1
 	end
 	if tier >= 5 and emitterCount < EMITTER_BUDGET then
-		makeEmitter(anchor, "GoldSparkle", GOLD, 26, true)
+		makeEmitter(anchor, "GoldSparkle", GOLD, 14, true)
 		emitterCount += 1
 	end
 
-	if tier >= 4 then
+	if tier >= 5 then
 		local shaft = Instance.new("Part")
 		shaft.Name = "LightShaft"
 		shaft.Shape = Enum.PartType.Cylinder
 		shaft.Size = Vector3.new(9, 2.2, 2.2)
 		shaft.Color = GOLD
-		shaft.Material = Enum.Material.Neon
-		shaft.Transparency = 0.72
+		shaft.Material = Enum.Material.SmoothPlastic
+		shaft.Transparency = 0.8
 		shaft.Anchored = true
 		shaft.CanCollide = false
 		shaft.CanQuery = false

@@ -236,8 +236,8 @@ local function applyLighting()
 	end)
 	pcall(function()
 		local bloom = Instance.new("BloomEffect")
-		bloom.Intensity = 0.5
-		bloom.Size = 24
+		bloom.Intensity = 0.15
+		bloom.Size = 12
 		bloom.Parent = Lighting
 	end)
 	pcall(function()

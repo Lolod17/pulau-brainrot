@@ -9,7 +9,7 @@ type Entry = Cast.Entry
 local SIGN_WIDTH = 7
 local SIGN_HEIGHT = 3.4
 local SIGN_DEPTH = 0.2
-local SIGN_GAP = 2
+local SIGN_GAP = 9
 
 local CHARCOAL = Color3.fromRGB(32, 32, 36)
 local PLATE = Color3.fromRGB(14, 14, 18)
@@ -83,11 +83,11 @@ local function addAura(anchor: BasePart, entry: Entry)
 	local particles = Instance.new("ParticleEmitter")
 	particles.Name = "Aura"
 	particles.Color = ColorSequence.new(entry.aura)
-	particles.LightEmission = 0.65
+	particles.LightEmission = 0.2
 	particles.Size = NumberSequence.new(0.55, 1.3)
 	particles.Transparency = NumberSequence.new(0.25, 1)
-	particles.Lifetime = NumberRange.new(1.2, 1.8)
-	particles.Rate = 14
+	particles.Lifetime = NumberRange.new(1.0, 1.4)
+	particles.Rate = 10
 	particles.Speed = NumberRange.new(0.5, 1.3)
 	particles.SpreadAngle = Vector2.new(25, 25)
 	particles.Parent = attachment
@@ -97,14 +97,14 @@ local function addAura(anchor: BasePart, entry: Entry)
 	end
 
 	particles.Size = NumberSequence.new(1.8, 3.6)
-	particles.Rate = 34
+	particles.Rate = 16
 	particles.Speed = NumberRange.new(0.8, 1.8)
 
 	local light = Instance.new("PointLight")
 	light.Name = "GoldLight"
 	light.Color = GOLD
-	light.Brightness = 5
-	light.Range = 18
+	light.Brightness = 2
+	light.Range = 10
 	light.Parent = anchor
 
 	local left = Instance.new("Attachment")
@@ -120,10 +120,10 @@ local function addAura(anchor: BasePart, entry: Entry)
 	trail.Name = "RainbowTrail"
 	trail.Attachment0 = left
 	trail.Attachment1 = right
-	trail.Lifetime = 2.6
+	trail.Lifetime = 1.6
 	trail.MinLength = 0.05
 	trail.FaceCamera = true
-	trail.LightEmission = 0.85
+	trail.LightEmission = 0.4
 	trail.LightInfluence = 0
 	trail.Color = RAINBOW
 	trail.WidthScale = NumberSequence.new(1)
@@ -135,7 +135,7 @@ local function addAura(anchor: BasePart, entry: Entry)
 	beam.Attachment0 = left
 	beam.Attachment1 = right
 	beam.Color = RAINBOW
-	beam.LightEmission = 1
+	beam.LightEmission = 0.3
 	beam.LightInfluence = 0
 	beam.FaceCamera = true
 	beam.Width0 = 1.15
@@ -143,7 +143,7 @@ local function addAura(anchor: BasePart, entry: Entry)
 	beam.Segments = 12
 	beam.CurveSize0 = 2.4
 	beam.CurveSize1 = -2.4
-	beam.Transparency = NumberSequence.new(0.05)
+	beam.Transparency = NumberSequence.new(0.3)
 	beam.Parent = anchor
 end
 
@@ -164,18 +164,18 @@ local function addFlame(model: Model, anchor: BasePart)
 	flame.Size = NumberSequence.new(0.55, 0.08)
 	flame.Transparency = NumberSequence.new(0.05, 1)
 	flame.Lifetime = NumberRange.new(0.35, 0.7)
-	flame.Rate = 28
+	flame.Rate = 16
 	flame.Speed = NumberRange.new(2, 4)
 	flame.SpreadAngle = Vector2.new(14, 14)
-	flame.LightEmission = 1
+	flame.LightEmission = 0.3
 	flame.EmissionDirection = Enum.NormalId.Top
 	flame.Parent = attachment
 
 	local glow = Instance.new("PointLight")
 	glow.Name = "FlameLight"
 	glow.Color = Color3.fromRGB(255, 140, 40)
-	glow.Brightness = 2
-	glow.Range = 9
+	glow.Brightness = 1
+	glow.Range = 8
 	glow.Parent = anchor
 end
 
