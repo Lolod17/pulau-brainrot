@@ -1,5 +1,6 @@
 -- Config: owns the shared gameplay tuning numbers every other server module reads.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: Config (the table's fields: startingCash, incomeTickRate, sellFraction, lockDuration, rebirthBaseCost, rebirthGrowth, rebirthIncomeBonus, cashAfterRebirth, dockSpawnCap, dockSpawnInterval, stealHold, stealCooldown, statePushRate, slotCount, baseCount, carryHeight, tiers)
 --!strict
 
 local Config = {

@@ -1,5 +1,6 @@
 -- Cast: owns the brainrot catalogue: part recipes per species, rarity weights, and roll/lookup helpers.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: Cast.entries, Cast.byId, Cast.byName, Cast.roll, Cast.getById, Cast.getByName
 --!strict
 
 export type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic" | "Ultra Rare"

@@ -1,5 +1,6 @@
 -- Steal: owns stealing brainrot from another player's pedestal, including cooldowns, validity checks, and notices.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: Steal.reason, Steal.try, Steal.clear, Steal.init, Steal.bind
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")

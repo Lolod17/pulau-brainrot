@@ -1,5 +1,6 @@
 -- Bases: owns per-player base plots: assignment, ownership boards, teleporting owners to their plot, and the base lock timer.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: Bases.init, Bases.records, Bases.get, Bases.getByIndex, Bases.assign, Bases.release, Bases.teleport, Bases.spawnAt, Bases.bindCharacter, Bases.isLocked, Bases.setLock, Bases.ownerOf
 --!strict
 
 local Players = game:GetService("Players")

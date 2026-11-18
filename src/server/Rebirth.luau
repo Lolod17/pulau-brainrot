@@ -1,5 +1,6 @@
 -- Rebirth: owns rebirth costs, the rebirth prompt and sign, and the reset that spends cash for an income multiplier.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: Rebirth.cost, Rebirth.costFor, Rebirth.multiplier, Rebirth.try, Rebirth.init, Rebirth.bind
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")

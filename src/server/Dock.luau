@@ -1,5 +1,6 @@
 -- Dock: owns the pier spawn spots, timed restocking of docked brainrot, rare spawn announcements, and the take prompt.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: Dock.standing, Dock.freeSpot, Dock.spawnOne, Dock.stock, Dock.init, Dock.start, Dock.stop, Dock.spots
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")

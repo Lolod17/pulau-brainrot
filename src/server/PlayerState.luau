@@ -1,5 +1,6 @@
 -- PlayerState: owns the authoritative per-player state record: cash, rebirths, slots, carrying, and (de)serialization.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: PlayerState.create, PlayerState.get, PlayerState.addCash, PlayerState.spendCash, PlayerState.setBase, PlayerState.setCarrying, PlayerState.setSlot, PlayerState.clearSlots, PlayerState.incomeMultiplier, PlayerState.placedIncome, PlayerState.serialize, PlayerState.clear, PlayerState.slotFromEntry
 --!strict
 
 local Config = require(script.Parent:WaitForChild("Config"))

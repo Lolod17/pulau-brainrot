@@ -1,5 +1,6 @@
 -- BrainrotFactory: owns building brainrot models from recipes, their signs and auras, idle part animation, and head-carry/pickup magic.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: Factory.animate, Factory.freeze, Factory.create, Factory.standOn, Factory.weldAboveHead, Factory.drop, Factory.remove, Factory.rehangSign
 --!strict
 
 local RunService = game:GetService("RunService")

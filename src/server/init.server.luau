@@ -1,5 +1,10 @@
 -- init.server: owns server bootstrap: remotes, wiring of every gameplay module, and the player join/leave/state-push loops.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- boot order: require Config, PlayerState, World, Bases, Carry, Dock, Pedestal, Lock, Steal, Rebirth, Save, Storm;
+-- boot order: create Net remotes State, Notify, Alert;
+-- boot order: init World anchors, Bases, Pedestal, Lock, Steal, Rebirth, Dock, Storm;
+-- boot order: bind Pedestal, Lock, Steal, Rebirth;
+-- boot order: connect PlayerAdded/PlayerRemoving, spawn onPlayer for present players, then start Pedestal, Lock, Dock, Storm, bind Save.
 --!strict
 
 local Players = game:GetService("Players")

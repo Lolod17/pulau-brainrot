@@ -1,5 +1,6 @@
 -- World: owns generating the island map once at startup and returning the anchors other modules wire to.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: World (build() returns the anchors table: pierSpawns, plotCentres, pedestals, rebirth, centre)
 --!strict
 
 local Lighting = game:GetService("Lighting")

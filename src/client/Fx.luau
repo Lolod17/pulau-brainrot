@@ -1,5 +1,6 @@
 -- Fx: owns client-side visual feedback: money bursts and floating gains, rare cards, storm flashes, and screen shake.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: Fx.build, Fx.money, Fx.event
 --!strict
 
 local Players = game:GetService("Players")

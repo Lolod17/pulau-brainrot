@@ -1,5 +1,6 @@
 -- Lock: owns base locking: fence solidity, the lock countdown board, and the lock prompt and ticker.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: Lock.isLocked, Lock.baseLocked, Lock.remaining, Lock.lock, Lock.unlock, Lock.tick, Lock.init, Lock.bind, Lock.start, Lock.stop, Lock.canPass
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")

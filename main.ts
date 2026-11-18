@@ -7,7 +7,8 @@
 // The check refuses, printing one line and exiting 1, when: PLAY.json does not parse or lacks the required
 // fields; place_id or universe_id is not a positive whole number (they stay 0 until the place is published);
 // url is not exactly https://www.roblox.com/games/<place_id>; screenshots holds fewer than 3 or more than 4
-// files, or a file is not named .jpg/.jpeg/.png, or any file is 262144 bytes or more; or game.rbxl is missing.
+// files, or a file is not named .jpg/.jpeg/.png, or any file is 262144 bytes or more; or game.rbxl is missing
+// or 33554432 bytes or more.
 //
 // Every name under /output starts with a letter, a digit or _ and holds only letters, digits, . _ and -: the
 // grader fails an entry whose output holds any other, so a file such as .gitkeep or .DS_Store copied in fails it.
@@ -28,6 +29,9 @@ const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 const MIN_SHOTS = 3;
 const MAX_SHOTS = 4;
 const MAX_SHOT_BYTES = 262144;
+
+/** The game.rbxl rule: the built place must be under 33554432 bytes (32 MiB). */
+const MAX_PLACE_BYTES = 33554432;
 
 /** A broken hand-in: the message is the one line printed before exiting 1. */
 class HandInError extends Error {}
@@ -87,7 +91,12 @@ function checkScreenshots(): number {
 
 /** Runs every hand-in check; the first failure throws a HandInError naming the problem. */
 function checkHandIn(): void {
-  if (!existsSync(join(here, 'game.rbxl'))) throw new HandInError('game.rbxl is missing; run rojo build first');
+  const placePath = join(here, 'game.rbxl');
+  if (!existsSync(placePath)) throw new HandInError('game.rbxl is missing; run rojo build first');
+  const placeBytes = statSync(placePath).size;
+  if (placeBytes > MAX_PLACE_BYTES) {
+    throw new HandInError(`game.rbxl is ${placeBytes} bytes, but must be at most ${MAX_PLACE_BYTES}`);
+  }
   checkPlay();
   checkScreenshots();
 }

@@ -1,5 +1,6 @@
 -- Pedestal: owns pedestal slots: placed models, rarity showcases, place/sell prompts, and passive income ticks.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: Pedestal.init, Pedestal.visual, Pedestal.sync, Pedestal.clearBase, Pedestal.tryPlace, Pedestal.trySell, Pedestal.tickIncome, Pedestal.bind, Pedestal.start, Pedestal.stop
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")

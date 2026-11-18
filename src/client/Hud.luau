@@ -1,5 +1,6 @@
 -- Hud: owns the client HUD: cash and income readouts, carry panel, status lines, storm banner, and alert cards.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: Hud.build, Hud.update, Hud.tick, Hud.basePosition, Hud.setStorm, Hud.setLock, Hud.alert, Hud.setHint, Hud.start
 --!strict
 
 local Players = game:GetService("Players")

@@ -1,5 +1,6 @@
 -- Save: owns DataStore persistence of player state on join, leave, and server shutdown.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: Save.load, Save.save, Save.saveAll, Save.bind, Save.startingCash
 --!strict
 
 local DataStoreService = game:GetService("DataStoreService")

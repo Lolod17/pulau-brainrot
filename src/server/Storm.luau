@@ -1,5 +1,6 @@
 -- Storm: owns the periodic storm cycle and the storm/notify remotes that broadcast to clients.
 -- Server gameplay is authoritative; the client only renders and sends intents.
+-- Public API: Storm.secondsUntilNext, Storm.init, Storm.bind, Storm.start, Storm.fireAlert, Storm.notify, Storm.notifyAll, Storm.fireBroadcast
 --!strict
 
 local Players = game:GetService("Players")
