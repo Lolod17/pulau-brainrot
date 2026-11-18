@@ -36,6 +36,8 @@ local METAL = Enum.Material.Metal
 local NEON = Enum.Material.Neon
 
 -- === part builders ===
+-- part: packs name, shape, size, offset, color and optional material into one recipe record.
+-- Returns a PartSpec table; material defaults to SmoothPlastic when omitted.
 local function part(
 	name: string,
 	shape: Enum.PartType,
@@ -54,10 +56,14 @@ local function part(
 	}
 end
 
+-- facing: builds an offset placed at pos whose front (LookVector) points along direction.
+-- Returns a CFrame from CFrame.lookAt(pos, pos + direction).
 local function facing(pos: Vector3, direction: Vector3): CFrame
 	return CFrame.lookAt(pos, pos + direction)
 end
 
+-- along: builds an offset at pos whose X axis runs along direction (for cylinder length), using a stable up hint.
+-- Returns a CFrame from CFrame.fromMatrix with the unit direction as its right vector.
 local function along(pos: Vector3, direction: Vector3): CFrame
 	local axis = direction.Unit
 	local hint = if math.abs(axis.Y) > 0.85 then Vector3.new(1, 0, 0) else Vector3.new(0, 1, 0)
@@ -335,6 +341,15 @@ for _, entry in ENTRIES do
 	nameLookup[entry.name] = entry
 end
 
+-- === module table ===
+-- Owns: the static ENTRIES catalogue (seven species with id, name, rarity, price, income,
+--   roll threshold, aura colour, height and part recipe) plus the idLookup / nameLookup
+--   indexes built from it once at load time.
+-- Refuses: building any Instance (recipes are plain PartSpec data for other modules to
+--   assemble), mutating or adding entries at runtime (no setter exists), and resolving
+--   unknown ids or names (getById / getByName return nil instead of guessing).
+-- Returns: the Cast table exposing entries, byId, byName, and the roll / getById /
+--   getByName functions defined below.
 local Cast = {
 	entries = ENTRIES,
 	byId = idLookup,
@@ -344,6 +359,8 @@ local Cast = {
 -- === public api ===
 -- roll: draws n in 1..1000 and returns the first entry (in table order) whose threshold >= n,
 -- so Common 1-450, Uncommon 451-700, Rare 701-880, Epic 881-960, Legendary 961-988, Mythic 989-998, Ultra Rare 999-1000.
+-- Cast.roll: picks one catalogue species by weighted rarity, using the given Random or math.random.
+-- Returns an Entry; falls back to the last entry (Kraken Emas) if no threshold matches.
 function Cast.roll(rng: Random?): Entry
 	local n = if rng then rng:NextInteger(1, 1000) else math.random(1, 1000)
 	for _, entry in ENTRIES do
@@ -354,10 +371,14 @@ function Cast.roll(rng: Random?): Entry
 	return ENTRIES[#ENTRIES]
 end
 
+-- Cast.getById: looks up a catalogue species by its snake_case id (e.g. "paus_api").
+-- Returns the matching Entry, or nil when the id is unknown.
 function Cast.getById(id: string): Entry?
 	return idLookup[id]
 end
 
+-- Cast.getByName: looks up a catalogue species by its display name (e.g. "Paus Api").
+-- Returns the matching Entry, or nil when the name is unknown.
 function Cast.getByName(name: string): Entry?
 	return nameLookup[name]
 end

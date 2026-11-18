@@ -53,6 +53,16 @@ local running = false
 local folder: Folder? = nil
 local alertRemote: RemoteEvent? = nil
 
+-- === module table: Dock ===
+-- Owns: the `spots` list (one invisible DockSpot marker per position along each pier, with its docked Model),
+--   the "Docked" folder, the `running` restock loop flag, the cached Net.Alert RemoteEvent, and every
+--   "TakePrompt" ProximityPrompt it puts on a docked brainrot's root part.
+-- Refuses: Dock.spawnOne when Dock.standing() >= Config.dockSpawnCap, when no spot is free, or before Dock.init
+--   has created the folder; Dock.start when the loop is already running; a take (onTake) when the prompt is not
+--   "TakePrompt", its parent is not a BasePart, the model is not Docked, the player has no PlayerState, the
+--   player is already carrying something, or the BrainrotId attribute is not a string or not known to Cast.getById.
+-- Returns: the Dock table with standing (number), freeSpot (Spot?), spawnOne (Model?), stock, init, start,
+--   stop (nothing) and spots (the live spots table, not a copy).
 local Dock = {}
 
 -- === rare announcements ===

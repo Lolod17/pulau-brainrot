@@ -2,6 +2,41 @@
 -- Server gameplay is authoritative; the client only renders and sends intents.
 -- Public API: Hud.build, Hud.update, Hud.tick, Hud.basePosition, Hud.setStorm, Hud.setLock, Hud.alert, Hud.setHint, Hud.start
 --!strict
+-- ============================================================================
+-- Module contract (derived from the code below)
+--
+-- Owns:
+--   * The "PulauHud" ScreenGui under the local player's PlayerGui (one copy;
+--     Hud.build destroys any existing "PulauHud" before creating a new one).
+--   * Every widget in it: the cash plate and cash label, the income label, the
+--     "Carrying" panel (holding and carry income labels), the "Status" frame
+--     (rebirth, storm, lock labels), the hint label, the "StormBanner" frame,
+--     and the "Alerts" stack of fading alert cards.
+--   * Client-side display state only: the storm countdown (nextStormAt,
+--     serverStormIn, lastStormText), the lock countdown (lockUntil), the banner
+--     hide time (bannerHideAt), the cached cash text (lastCashText), the last
+--     base position the server reported (basePosition), and the single
+--     RenderStepped connection (ticker).
+--
+-- Refuses:
+--   * Gameplay authority: it never changes cash, carry, rebirths, storms or
+--     locks. It only shows what the server sends through Hud.update,
+--     Hud.setStorm, Hud.setLock and Hud.alert.
+--   * Drawing before Hud.build: Hud.update returns at once when no gui exists,
+--     every other writer checks its label is set, and pushAlert returns when
+--     there is no alert stack.
+--   * Badly typed payload fields: cash, rebirths and seconds go through
+--     tonumber with defaults; carrying must be a table, basePosition a
+--     Vector3, stormIn a number, and an alert color a Color3, or they are
+--     ignored or replaced with a default.
+--   * Running two tickers: Hud.start disconnects the old RenderStepped
+--     connection before it connects a new one.
+--
+-- Returns:
+--   * The Hud table. Hud.build returns Hud, Hud.basePosition returns the last
+--     reported base position (Vector3?), Hud.start returns nil, and every
+--     other public function returns nothing.
+-- ============================================================================
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -35,6 +70,8 @@ local lastCashText = ""
 local basePosition: Vector3? = nil
 
 -- === formatting ===
+-- Formats a number as a whole number with commas every three digits, keeping a leading minus sign.
+-- Returns the formatted string, e.g. 1234567.8 becomes "1,234,567" and -1500 becomes "-1,500".
 local function comma(value: number): string
 	local whole = math.floor(math.abs(value))
 	local text = tostring(whole)
@@ -53,6 +90,8 @@ local function comma(value: number): string
 	return out
 end
 
+-- Turns a number of seconds into a minutes:seconds clock, with negatives clamped to zero.
+-- Returns a string like "3:05"; whole minutes are not wrapped into hours.
 local function clock(seconds: number): string
 	local total = math.max(0, math.floor(seconds))
 	local minutes = total // 60
@@ -61,6 +100,8 @@ local function clock(seconds: number): string
 end
 
 -- === label helper ===
+-- Creates a transparent, centred GothamBlack TextLabel with a black stroke and parents it to parent.
+-- Returns the new TextLabel so the caller can change alignment, font or text afterwards.
 local function makeLabel(parent: Instance, name: string, size: UDim2, position: UDim2, textSize: number, color: Color3): TextLabel
 	local label = Instance.new("TextLabel")
 	label.Name = name
@@ -91,6 +132,8 @@ local ALERT_STYLE: { [string]: { color: Color3, icon: string } } = {
 }
 
 -- === alert stack ===
+-- Adds an alert card (icon and colour from ALERT_STYLE by data.kind) to the stack, fading and destroying it after 4 seconds.
+-- Returns nothing; it does nothing if Hud.build has not created the alert stack yet.
 local function pushAlert(data: { [string]: any })
 	local stack = alertStack
 	if not stack then
@@ -141,6 +184,8 @@ local function pushAlert(data: { [string]: any })
 end
 
 -- === public api ===
+-- Destroys any old "PulauHud" and builds a fresh ScreenGui with every HUD widget, saving them in module locals.
+-- Returns the Hud table so calls can be chained.
 function Hud.build()
 	local existing = player:FindFirstChild("PlayerGui")
 	local container = existing and existing:FindFirstChild("PulauHud")
@@ -250,6 +295,8 @@ function Hud.build()
 end
 
 -- === inner updates ===
+-- Sets the HUD's UIScale from the camera viewport width (1280px base), clamped between 0.7 and 1.0.
+-- Returns nothing; it does nothing if the HUD has not been built.
 local function updateScaling()
 	local screen = gui
 	if not screen then
@@ -265,6 +312,8 @@ local function updateScaling()
 end
 
 -- === storm text ===
+-- Works out the seconds left until the next storm from the local countdown, or else the last server value.
+-- Returns "Next storm: --" if unknown, "STORM IN n" for 10 seconds or less, otherwise "Next storm: m:ss".
 local function stormText(): string
 	local seconds: number? = nil
 	if nextStormAt then
@@ -282,6 +331,8 @@ local function stormText(): string
 end
 
 -- === inner updates ===
+-- Writes stormText() to the storm label only when it changed, turning it red during the "STORM IN" countdown.
+-- Returns nothing; it does nothing if the storm label has not been built.
 local function refreshStorm()
 	if not stormLabel then
 		return
@@ -299,6 +350,8 @@ local function refreshStorm()
 end
 
 -- === public api ===
+-- Renders a server state snapshot: cash, income, carry panel, rebirths, base position, storm countdown and lock text.
+-- Returns nothing; it does nothing before Hud.build, and bad or missing fields fall back to defaults or are skipped.
 function Hud.update(state: { [string]: any })
 	if not gui then
 		return
@@ -356,6 +409,8 @@ end
 -- === public api ===
 local ticker: RBXScriptConnection? = nil
 
+-- Per-frame step: moves the storm countdown on, hides or recounts the storm banner, and counts down the base lock.
+-- Returns nothing; it clears nextStormAt once it is more than 1 second past, and lockUntil once it runs out.
 function Hud.tick()
 	local now = os.clock()
 	if stormLabel and nextStormAt then
@@ -385,10 +440,14 @@ function Hud.tick()
 	end
 end
 
+-- Reads the last base position the server sent through Hud.update.
+-- Returns that Vector3, or nil if no valid position has arrived yet.
 function Hud.basePosition(): Vector3?
 	return basePosition
 end
 
+-- Handles a storm phase from the server: "warning" starts the countdown banner, "wave" shows the wave banner for 8s, "clear" hides it.
+-- Returns nothing; it resets the next-storm countdown (default 10s on warning, 180s on clear) and refreshes the storm label.
 function Hud.setStorm(payload: { [string]: any })
 	local phase = payload.phase
 	if phase == "warning" then
@@ -416,6 +475,8 @@ function Hud.setStorm(payload: { [string]: any })
 	refreshStorm()
 end
 
+-- Starts the client lock countdown (payload.seconds, default 30) when payload.locked is truthy, otherwise clears it.
+-- Returns nothing; the lock label itself is redrawn by Hud.tick and Hud.update.
 function Hud.setLock(payload: { [string]: any })
 	if payload.locked then
 		lockUntil = os.clock() + (tonumber(payload.seconds) or 30)
@@ -424,16 +485,22 @@ function Hud.setLock(payload: { [string]: any })
 	end
 end
 
+-- Public entry for server alerts; passes data (kind, text, optional color) on to pushAlert.
+-- Returns nothing; the alert is dropped if the HUD has not been built.
 function Hud.alert(data: { [string]: any })
 	pushAlert(data)
 end
 
+-- Sets the hint line under the carry panel to text, or clears it when text is nil.
+-- Returns nothing; it does nothing if the hint label has not been built.
 function Hud.setHint(text: string?)
 	if hintLabel then
 		hintLabel.Text = text or ""
 	end
 end
 
+-- Applies viewport scaling once and connects Hud.tick to RenderStepped, disconnecting any earlier ticker first.
+-- Returns nil.
 function Hud.start()
 	updateScaling()
 	if ticker then

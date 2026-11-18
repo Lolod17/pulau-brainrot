@@ -21,8 +21,17 @@ type Slot = PlayerState.Slot
 local held: { [Player]: Model } = {}
 local followConn: RBXScriptConnection? = nil
 
+-- Carry module table.
+-- Owns: the `held` map (Player -> carried Model) and the single `followConn` Heartbeat
+--   connection that lerps unwelded carried models to head + Config.carryHeight.
+-- Refuses: attach returns nil when PlayerState.get has no state, state.carrying is already set,
+--   player.Character is missing, Cast.getById(slot.id) finds nothing, or the model has no PrimaryPart;
+--   restore does nothing when there is no carrying state, a model is already held, or no character.
+-- Returns: isCarrying -> boolean; modelOf, attach, release, takeModel -> Model?; clear, restore, stop -> nothing.
 local Carry = {}
 
+-- Starts the shared Heartbeat follow loop once, moving unwelded held models above each carrier's head.
+-- Returns nothing; exits early if the follow connection already exists.
 local function ensureFollow()
 	if followConn then
 		return
@@ -52,6 +61,8 @@ local function ensureFollow()
 	end)
 end
 
+-- Removes every held model that has lost its Parent and clears that player's PlayerState carrying.
+-- Returns nothing.
 local function dropDetached()
 	for player, model in held do
 		if not model.Parent then
@@ -61,15 +72,21 @@ local function dropDetached()
 	end
 end
 
+-- Reports whether the player's PlayerState currently records a carried slot.
+-- Returns true if state exists and state.carrying is non-nil, false otherwise.
 function Carry.isCarrying(player: Player): boolean
 	local state = PlayerState.get(player)
 	return state ~= nil and state.carrying ~= nil
 end
 
+-- Looks up the Model this module holds for the player.
+-- Returns the held Model, or nil if none.
 function Carry.modelOf(player: Player): Model?
 	return held[player]
 end
 
+-- Attaches a slot's brainrot (the passed-in parented model or a freshly built one) above the player's head and records carrying.
+-- Returns the attached Model, or nil when refused (no state, already carrying, no character, unknown slot id, no PrimaryPart).
 function Carry.attach(player: Player, slot: Slot, existing: Model?): Model?
 	local state = PlayerState.get(player)
 	if not state then
@@ -113,6 +130,8 @@ function Carry.attach(player: Player, slot: Slot, existing: Model?): Model?
 	return model
 end
 
+-- Forgets the held model, clears PlayerState carrying, and drops the model via Factory.drop if it is still parented.
+-- Returns the model that was held (possibly unparented), or nil if none.
 function Carry.release(player: Player): Model?
 	local model = held[player]
 	held[player] = nil
@@ -123,6 +142,8 @@ function Carry.release(player: Player): Model?
 	return model
 end
 
+-- Forgets the held model and clears PlayerState carrying without dropping or destroying it.
+-- Returns the model for the caller to reuse, or nil if none was held or it is unparented.
 function Carry.takeModel(player: Player): Model?
 	local model = held[player]
 	held[player] = nil
@@ -133,6 +154,8 @@ function Carry.takeModel(player: Player): Model?
 	return model
 end
 
+-- Forgets the held model, clears PlayerState carrying, and removes the model via Factory.remove inside a pcall.
+-- Returns nothing.
 function Carry.clear(player: Player)
 	local model = held[player]
 	held[player] = nil
@@ -144,6 +167,8 @@ function Carry.clear(player: Player)
 	end
 end
 
+-- Re-attaches the slot recorded in PlayerState carrying (e.g. after respawn) when no model is held and a character exists.
+-- Returns nothing; the result of Carry.attach is discarded.
 function Carry.restore(player: Player)
 	local state = PlayerState.get(player)
 	if not state or not state.carrying or held[player] then
@@ -155,6 +180,8 @@ function Carry.restore(player: Player)
 	Carry.attach(player, state.carrying, nil)
 end
 
+-- Disconnects the Heartbeat follow connection if it is running and clears it.
+-- Returns nothing.
 function Carry.stop()
 	if followConn then
 		followConn:Disconnect()

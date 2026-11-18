@@ -4,13 +4,28 @@
 // src/, screenshots/ and PLAY.json from beside this file to /output and writes /output/dossier.json, the
 // summary the judge reads, with the vendored make.fun library.
 //
-// The check refuses, printing one line and exiting 1, when: MAKEFUN_OUTPUT_DIR resolves to this repository or any
-// path inside it (a dossier written into the entry would ship stray files, and copying src/ into itself recurses);
-// PLAY.json does not parse or lacks the required
-// fields; place_id or universe_id is not a positive whole number (they stay 0 until the place is published);
-// url is not exactly https://www.roblox.com/games/<place_id>; screenshots holds fewer than 3 or more than 4
-// files, or a file is not named .jpg/.jpeg/.png, or any file is 262144 bytes or more; or game.rbxl is missing
-// or 33554432 bytes or more.
+// Refusals. Each broken case prints one line, "Broken hand-in: <message>", to stderr and exits 1. The checks run
+// in this order and the first failure wins:
+//   1. MAKEFUN_OUTPUT_DIR is this repository or any path inside it (a dossier written into the entry would ship
+//      stray files, and copying src/ into itself recurses):
+//        "MAKEFUN_OUTPUT_DIR (<dir>) is inside the repository <repo>; point it outside the entry"
+//   2. game.rbxl is missing:            "game.rbxl is missing; run rojo build first"
+//   3. game.rbxl is over 33554432 bytes: "game.rbxl is <n> bytes, but must be at most 33554432"
+//   4. PLAY.json is missing:            "PLAY.json is missing from the repository root"
+//   5. PLAY.json does not parse:        "PLAY.json is not valid JSON"
+//   6. PLAY.json is not an object:      "PLAY.json must be a JSON object"
+//   7. place_id is not a positive whole number (it stays 0 until the place is published):
+//        "PLAY.json place_id is not a positive whole number"
+//   8. universe_id likewise:            "PLAY.json universe_id is not a positive whole number"
+//   9. url is not exactly https://www.roblox.com/games/<place_id>:
+//        "PLAY.json url must be https://www.roblox.com/games/<place_id>, got <url>"
+//  10. screenshots/ is missing:         "screenshots/ is missing from the repository root"
+//  11. a screenshot is not .jpg/.jpeg/.png: "screenshots/<name> is not a .jpg, .jpeg or .png file"
+//  12. screenshots/ holds fewer than 3 or more than 4 files:
+//        "screenshots/ holds <n> files, but the kit wants 3 or 4"
+//  13. a screenshot is 262144 bytes or more:
+//        "screenshots/<name> is <n> bytes, but must be under 262144"
+// Names starting with a dot inside screenshots/ are ignored by these checks.
 //
 // Every name under /output starts with a letter, a digit or _ and holds only letters, digits, . _ and -: the
 // grader fails an entry whose output holds any other, so a file such as .gitkeep or .DS_Store copied in fails it.
@@ -24,6 +39,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-roblox.ts';
 
+// The directory holding this file (the repository root) and the output directory, /output unless overridden.
 const here = fileURLToPath(new URL('.', import.meta.url));
 const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
@@ -43,9 +59,11 @@ const isPositiveWhole = (value: unknown): value is number =>
 
 /** Reads PLAY.json and returns its place_id and universe_id, refusing anything the kit would refuse. */
 function checkPlay(): { placeId: number; universeId: number } {
+  // Check: PLAY.json exists at the repository root.
   const playPath = join(here, 'PLAY.json');
   if (!existsSync(playPath)) throw new HandInError('PLAY.json is missing from the repository root');
 
+  // Check: PLAY.json parses as JSON and is a plain object.
   let play: unknown;
   try {
     play = JSON.parse(readFileSync(playPath, 'utf8'));
@@ -56,6 +74,7 @@ function checkPlay(): { placeId: number; universeId: number } {
     throw new HandInError('PLAY.json must be a JSON object');
   }
 
+  // Check: place_id and universe_id are positive whole numbers (0 means unpublished), then url matches place_id.
   const { url, place_id, universe_id } = play as Record<string, unknown>;
   if (!isPositiveWhole(place_id)) throw new HandInError('PLAY.json place_id is not a positive whole number');
   if (!isPositiveWhole(universe_id)) throw new HandInError('PLAY.json universe_id is not a positive whole number');
@@ -67,21 +86,26 @@ function checkPlay(): { placeId: number; universeId: number } {
 
 /** Checks screenshots/ holds 3 or 4 images, each .jpg/.jpeg/.png and each under 262144 bytes. */
 function checkScreenshots(): number {
+  // Check: screenshots/ exists at the repository root.
   const shotsDir = join(here, 'screenshots');
   if (!existsSync(shotsDir)) throw new HandInError('screenshots/ is missing from the repository root');
 
+  // Dotted names (.gitkeep, .DS_Store) are left out of every screenshot check.
   const names = readdirSync(shotsDir, { withFileTypes: true })
     .filter((entry) => !entry.name.startsWith('.'))
     .map((entry) => entry.name);
 
+  // Check: every screenshot has a .jpg, .jpeg or .png extension.
   for (const name of names) {
     if (!/\.(jpg|jpeg|png)$/i.test(name)) {
       throw new HandInError(`screenshots/${name} is not a .jpg, .jpeg or .png file`);
     }
   }
+  // Check: there are 3 or 4 screenshots.
   if (names.length < MIN_SHOTS || names.length > MAX_SHOTS) {
     throw new HandInError(`screenshots/ holds ${names.length} files, but the kit wants 3 or 4`);
   }
+  // Check: every screenshot is under 262144 bytes.
   for (const name of names) {
     const bytes = statSync(join(shotsDir, name)).size;
     if (bytes >= MAX_SHOT_BYTES) {
@@ -102,6 +126,7 @@ function realish(path: string): string {
 
 /** Refuses an output directory that is this repository or lies inside it. */
 function checkOutput(): void {
+  // Check: the resolved output directory lies strictly outside the resolved repository.
   const repo = realish(here);
   const target = realish(out);
   const rel = relative(repo, target);
@@ -113,17 +138,23 @@ function checkOutput(): void {
 
 /** Runs every hand-in check; the first failure throws a HandInError naming the problem. */
 function checkHandIn(): void {
+  // Check 1: the output directory is outside the repository.
   checkOutput();
+  // Check 2: game.rbxl exists.
   const placePath = join(here, 'game.rbxl');
   if (!existsSync(placePath)) throw new HandInError('game.rbxl is missing; run rojo build first');
+  // Check 3: game.rbxl is at most MAX_PLACE_BYTES.
   const placeBytes = statSync(placePath).size;
   if (placeBytes > MAX_PLACE_BYTES) {
     throw new HandInError(`game.rbxl is ${placeBytes} bytes, but must be at most ${MAX_PLACE_BYTES}`);
   }
+  // Checks 4-9: PLAY.json.
   checkPlay();
+  // Checks 10-13: screenshots/.
   checkScreenshots();
 }
 
+// Run the checks; a HandInError prints its one-line refusal and exits 1, anything else is rethrown.
 try {
   checkHandIn();
 } catch (error) {
@@ -135,12 +166,14 @@ try {
 /** cpSync's filter: leave out every file and directory whose name starts with a dot (.gitkeep, .DS_Store, .git). */
 const notDotted = (path: string): boolean => !basename(path).startsWith('.');
 
+// Copy the hand-in into the output directory, skipping dotted names in src/ and screenshots/.
 copyFileSync(join(here, 'game.rbxl'), join(out, 'game.rbxl'));
 copyFileSync(join(here, 'PLAY.json'), join(out, 'PLAY.json'));
 cpSync(join(here, 'src'), join(out, 'src'), { recursive: true, filter: notDotted });
 mkdirSync(join(out, 'screenshots'), { recursive: true });
 if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true, filter: notDotted });
 
+// Write dossier.json, the summary the judge reads, built by the vendored make.fun library from the output copy.
 // The scorer's own caps (reference/gate.json): only text_max_bytes shapes the bytes; the others refuse an entry the
 // scorer would refuse (more than 4 screenshots or one over 256 KiB; a place of more than 500000 instances, whose
 // scripts' sources come to over 8 MiB or whose scripts' paths come to over 1048576 characters, in all).

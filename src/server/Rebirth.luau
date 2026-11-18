@@ -6,6 +6,12 @@
 --   try validates the player has state, cash >= cost and PlayerState.spendCash succeeds; returns false otherwise.
 --   On success it clears the carry, slots and base pedestals, adds one rebirth, sets cash to Config.cashAfterRebirth, notifies, and returns true.
 --   bind only calls try for a "RebirthPrompt" trigger by a player who holds a base.
+-- module block:
+--   Owns: the rebirth cost curve, the income multiplier curve, the "RebirthPrompt" ProximityPrompt and "RebirthSign"
+--     BillboardGui on the plaza spot, and the rebirth reset (carry, slots, base pedestals, rebirth count, cash).
+--   Refuses: a rebirth for a player with no PlayerState, cash below the cost, or a failed PlayerState.spendCash;
+--     prompt triggers whose prompt is not named "RebirthPrompt"; triggers from a player with no Bases record.
+--   Returns: the Rebirth table; cost/costFor/multiplier return numbers, try returns a boolean, init and bind return nothing.
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -19,20 +25,28 @@ local Storm = require(script.Parent:WaitForChild("Storm"))
 
 local Rebirth = {}
 
+-- Computes the cash price of the next rebirth for a given rebirth count from Config base cost and growth.
+-- Returns a number: Config.rebirthBaseCost * Config.rebirthGrowth ^ rebirths.
 function Rebirth.cost(rebirths: number): number
 	return Config.rebirthBaseCost * (Config.rebirthGrowth ^ rebirths)
 end
 
+-- Looks up the player's current rebirth count (0 when they have no state) and prices their next rebirth.
+-- Returns a number: Rebirth.cost of that rebirth count.
 function Rebirth.costFor(player: Player): number
 	local state = PlayerState.get(player)
 	local rebirths = if state then state.rebirths else 0
 	return Rebirth.cost(rebirths)
 end
 
+-- Computes the income multiplier granted by a given rebirth count using Config.rebirthIncomeBonus.
+-- Returns a number: 1 + Config.rebirthIncomeBonus * rebirths.
 function Rebirth.multiplier(rebirths: number): number
 	return 1 + Config.rebirthIncomeBonus * rebirths
 end
 
+-- Attempts a rebirth: spends the price, clears carry, slots and base pedestals, bumps rebirths, resets cash, notifies.
+-- Returns a boolean: true on success, false if the player has no state, too little cash, or spendCash fails.
 function Rebirth.try(player: Player): boolean
 	local state = PlayerState.get(player)
 	if not state then
@@ -57,6 +71,8 @@ function Rebirth.try(player: Player): boolean
 	return true
 end
 
+-- Builds the "RebirthPrompt" ProximityPrompt and the "RebirthSign" BillboardGui with its "Cost" label on the given spot.
+-- Returns nothing; the created instances are parented to spot.
 function Rebirth.init(spot: BasePart)
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "RebirthPrompt"
@@ -84,6 +100,8 @@ function Rebirth.init(spot: BasePart)
 	label.Parent = gui
 end
 
+-- Connects PromptTriggered so a "RebirthPrompt" trigger by a player holding a base calls Rebirth.try.
+-- Returns nothing; other prompts and players without a Bases record are ignored.
 function Rebirth.bind()
 	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
 		if prompt.Name ~= "RebirthPrompt" then

@@ -1,6 +1,17 @@
 -- Fx: owns client-side visual feedback: money bursts and floating gains, rare cards, storm flashes, and screen shake.
 -- Server gameplay is authoritative; the client only renders and sends intents.
 -- Public API: Fx.build, Fx.money, Fx.event
+-- Module contract (derived from the code below):
+--   Owns: the PlayerGui ScreenGui "PulauFx" and its "Flash" frame, the workspace folder "ClientFx"
+--     (burst anchors and per-player "MoneyHolder" billboards), the stack of "RareCard" labels
+--     (at most MAX_RARE_CARDS on screen), and a single RenderStepped connection that applies
+--     camera shake around a remembered base CFrame and restores it when shake reaches zero.
+--   Refuses: non-number or non-positive gains in Fx.money; floating gain labels shown more than
+--     once per second per player; positions that are not Vector3 and colors that are not Color3
+--     (falling back to no position, GOLD or AURA_DEFAULT); any work when PlayerGui or the
+--     character's HumanoidRootPart is missing; a second RenderStepped connection on repeat builds.
+--   Returns: Fx.build returns the Fx table; Fx.money and Fx.event return nothing. Nothing here
+--     sends to or trusts the server; it only renders.
 --!strict
 
 local Players = game:GetService("Players")
@@ -25,6 +36,8 @@ local rareCards: { Frame } = {}
 local MAX_RARE_CARDS = 2
 
 -- === screen flash ===
+-- Looks up the workspace's current camera for the shake loop.
+-- Returns the Camera, or nil when workspace.CurrentCamera is not set.
 local function camera(): Camera?
 	local current = workspace.CurrentCamera
 	if current then
@@ -34,6 +47,8 @@ local function camera(): Camera?
 end
 
 -- === screen flash ===
+-- Finds or creates the "PulauFx" ScreenGui and its full-screen transparent "Flash" frame, caching it in `flash`.
+-- Returns the Flash frame, or nil when the player has no PlayerGui yet.
 local function makeFlash()
 	local container = player:FindFirstChild("PlayerGui")
 	if not container then
@@ -64,6 +79,8 @@ local function makeFlash()
 	return frame
 end
 
+-- Finds or creates the workspace "ClientFx" folder that parents all client-side world effects.
+-- Returns that folder Instance; never nil.
 local function effectsFolder(): Instance
 	local existing = workspace:FindFirstChild("ClientFx")
 	if existing then
@@ -76,6 +93,8 @@ local function effectsFolder(): Instance
 end
 
 -- === world effects ===
+-- Spawns an invisible anchored part at position, emits 14 particles in color, and destroys it after 1.6 seconds.
+-- Returns nothing.
 local function burst(position: Vector3, color: Color3)
 	local anchor = Instance.new("Part")
 	anchor.Name = "FxBurst"
@@ -115,6 +134,8 @@ local function burst(position: Vector3, color: Color3)
 end
 
 -- === money feedback ===
+-- Reuses the player's cached money billboard, or builds one on an anchored part 4 studs above their root.
+-- Returns the BillboardGui, or nil when the player has no HumanoidRootPart.
 local function billboardFor(targetPlayer: Player): BillboardGui?
 	local character = targetPlayer.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -145,6 +166,8 @@ local function billboardFor(targetPlayer: Player): BillboardGui?
 	return gui
 end
 
+-- Shows a rising, fading gold "+$amount" label over the player, throttled to once per second per player.
+-- Returns nothing; silently skips when throttled or when no billboard can be built.
 local function floatGain(targetPlayer: Player, amount: number)
 	local now = os.clock()
 	if (lastGainShownAt[targetPlayer] or 0) + 1 > now then
@@ -182,6 +205,8 @@ local function floatGain(targetPlayer: Player, amount: number)
 end
 
 -- === camera shake ===
+-- Raises the shared shake level to at least strength, then lowers it by strength after duration seconds.
+-- Returns nothing; the RenderStepped loop in Fx.build applies the shake.
 local function screenShake(strength: number, duration: number)
 	shake = math.max(shake, strength)
 	task.delay(duration, function()
@@ -190,6 +215,8 @@ local function screenShake(strength: number, duration: number)
 end
 
 -- === public api ===
+-- Builds the flash overlay and connects, once, the RenderStepped loop that jitters and restores the camera.
+-- Returns the Fx module table so callers can chain.
 function Fx.build()
 	makeFlash()
 	if not renderConn then
@@ -218,6 +245,8 @@ function Fx.build()
 	return Fx
 end
 
+-- Plays a gold burst at basePosition (or just above the local character) and floats the gain over the local player.
+-- Returns nothing; ignores gains that are not positive numbers.
 function Fx.money(gain: number, basePosition: Vector3?)
 	if typeof(gain) ~= "number" or gain <= 0 then
 		return
@@ -236,6 +265,8 @@ function Fx.money(gain: number, basePosition: Vector3?)
 end
 
 -- === rare cards ===
+-- Flashes the overlay gold and fades it out over 0.6 seconds, then restores its wave-blue color.
+-- Returns nothing; does nothing when the flash frame cannot be made.
 local function goldFlash()
 	local frame = makeFlash()
 	if not frame then
@@ -252,6 +283,8 @@ local function goldFlash()
 	end)
 end
 
+-- Drops destroyed cards from rareCards and destroys the oldest until there is room for one more under MAX_RARE_CARDS.
+-- Returns nothing; mutates the module-level rareCards list.
 local function pruneRareCards()
 	local kept: { Frame } = {}
 	for _, card in rareCards do
@@ -268,6 +301,8 @@ local function pruneRareCards()
 	end
 end
 
+-- Shows a stacked rare or ultra-rare spawn card; ultra cards also gold-flash and shake, and every card fades after 1.8 seconds.
+-- Returns nothing; does nothing when PlayerGui or the PulauFx screen is unavailable.
 local function rareCard(data: { [string]: any })
 	local container = player:FindFirstChild("PlayerGui")
 	if not container then
@@ -322,6 +357,8 @@ local function rareCard(data: { [string]: any })
 end
 
 -- === public api ===
+-- Dispatches a server fx event by kind: cash to Fx.money, rare to a card, wave/storm to flash and shake, plus optional bursts.
+-- Returns nothing; cash and rare kinds return early, others may also burst at data.position or the character.
 function Fx.event(data: { [string]: any })
 	local kind = data.kind
 	if kind == "cash" then

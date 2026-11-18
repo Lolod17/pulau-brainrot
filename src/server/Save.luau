@@ -7,6 +7,11 @@
 --   SetAsync (failure -> warn, save returns false), each Save.save inside saveAll (failure -> warn, skip player), BindToClose (failure -> warn).
 --   Validates: load returns the stored value only if it is a table; save needs a store and a PlayerState.serialize payload, stamps version = 1.
 --   Returns: load -> table or nil; save -> boolean; startingCash -> Config.startingCash.
+--   Refuses: retrying GetDataStore after the first attempt (storeReady latches even on failure); loading non-table
+--   stored values (returns nil); saving with no store or no serialize payload (returns false); letting any DataStore
+--   or BindToClose error escape to the caller (all are pcall wrapped and warned).
+--   Does not own: the shape of player data (PlayerState.serialize builds it) or the starting cash value (Config owns it).
+--   saveAll and bind return nothing; getStore is private and returns the cached store or nil.
 --!strict
 
 local DataStoreService = game:GetService("DataStoreService")
@@ -21,6 +26,8 @@ local KEY_PREFIX = "p_"
 local store: any = nil
 local storeReady = false
 
+-- getStore: fetches the "PulauBrainrot_v1" DataStore once under pcall, warning and caching nil on failure.
+-- Returns the cached DataStore, or nil when DataStoreService is unavailable (session-only data).
 local function getStore(): any
 	if storeReady then
 		return store
@@ -40,6 +47,8 @@ end
 
 local Save = {}
 
+-- Save.load: reads the player's "p_" .. UserId record via a pcall wrapped GetAsync, warning on failure.
+-- Returns the stored table, or nil when there is no store, the read fails, or the value is not a table.
 function Save.load(player: Player): { [string]: any }?
 	local dataStore = getStore()
 	if not dataStore then
@@ -59,6 +68,8 @@ function Save.load(player: Player): { [string]: any }?
 	return result
 end
 
+-- Save.save: serializes the player via PlayerState, stamps version = 1, and writes it with a pcall wrapped SetAsync.
+-- Returns true on a successful write; false when there is no store, no payload, or SetAsync fails.
 function Save.save(player: Player): boolean
 	local dataStore = getStore()
 	if not dataStore then
@@ -80,6 +91,8 @@ function Save.save(player: Player): boolean
 	return true
 end
 
+-- Save.saveAll: calls Save.save for every connected player, each under pcall so one error skips only that player.
+-- Returns nothing; per-player save results are discarded and errors are only warned.
 function Save.saveAll()
 	for _, player in Players:GetPlayers() do
 		local ok, err = pcall(function()
@@ -91,6 +104,8 @@ function Save.saveAll()
 	end
 end
 
+-- Save.bind: registers Save.saveAll as a game:BindToClose handler, warning if registration is unavailable.
+-- Returns nothing.
 function Save.bind()
 	local ok, err = pcall(function()
 		game:BindToClose(function()
@@ -102,6 +117,8 @@ function Save.bind()
 	end
 end
 
+-- Save.startingCash: exposes the configured starting cash for new or unsaved players.
+-- Returns Config.startingCash as a number.
 function Save.startingCash(): number
 	return Config.startingCash
 end

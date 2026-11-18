@@ -21,10 +21,20 @@ local Storm = require(script.Parent:WaitForChild("Storm"))
 
 local cooldownUntil: { [Player]: number } = {}
 
+-- Steal module table.
+-- Owns: the cooldownUntil map (thief -> os.clock() deadline, set by try, cleared by clear) and the
+--   "StealPrompt" ProximityPrompt that init parents to every pedestal top in Bases.records().
+-- Refuses: "missing" (no base record, no owner, or owner state gone), "owner" (thief owns the base),
+--   "cooldown" (cooldownUntil[thief] > clock), "locked" (Lock.baseLocked or Bases.isLocked),
+--   "empty" (owner slot nil), "carrying" (thief state missing, already carrying, or Carry.attach failed).
+-- Returns: reason -> Reason; try -> (boolean, Reason), (true, "ok") only after the slot moves to the thief;
+--   clear, init and bind return nothing; bind routes PromptTriggered on "StealPrompt" into Steal.try.
 local Steal = {}
 
 export type Reason = "ok" | "locked" | "empty" | "carrying" | "owner" | "cooldown" | "missing"
 
+-- Checks, without changing state, whether thief may steal slotIndex from base baseIndex at now (or os.clock()).
+-- Returns a Reason: "ok" when allowed, else the first failing check ("missing", "owner", "cooldown", "locked", "empty", "carrying").
 function Steal.reason(thief: Player, baseIndex: number, slotIndex: number, now: number?): Reason
 	local record = Bases.getByIndex(baseIndex)
 	if not record or not record.owner then
@@ -51,6 +61,8 @@ function Steal.reason(thief: Player, baseIndex: number, slotIndex: number, now: 
 	return "ok"
 end
 
+-- Starts the thief's cooldown, validates, then moves the owner's slot and pedestal model onto the thief and notifies both players.
+-- Returns (true, "ok") on success, or (false, reason) with the owner's slot and model restored if Carry.attach fails.
 function Steal.try(thief: Player, baseIndex: number, slotIndex: number, now: number?): (boolean, Reason)
 	local clock = now or os.clock()
 	cooldownUntil[thief] = clock + Config.stealCooldown
@@ -104,10 +116,14 @@ function Steal.try(thief: Player, baseIndex: number, slotIndex: number, now: num
 	return true, "ok"
 end
 
+-- Forgets the player's steal cooldown (e.g. when they leave).
+-- Returns nothing.
 function Steal.clear(player: Player)
 	cooldownUntil[player] = nil
 end
 
+-- Creates a "StealPrompt" ProximityPrompt (hold Config.stealHold, range 10, no line of sight) on every pedestal top of every base.
+-- Returns nothing.
 function Steal.init()
 	for _, record in Bases.records() do
 		for slotIndex, top in record.pedestals do
@@ -123,6 +139,8 @@ function Steal.init()
 	end
 end
 
+-- Finds which base and pedestal slot a prompt belongs to by matching its parent BasePart against every base's pedestals.
+-- Returns (baseIndex, slotIndex), or (nil, nil) if the parent is not a BasePart or matches no pedestal.
 local function slotOf(prompt: ProximityPrompt): (number?, number?)
 	local top = prompt.Parent
 	if not (top and top:IsA("BasePart")) then
@@ -138,6 +156,8 @@ local function slotOf(prompt: ProximityPrompt): (number?, number?)
 	return nil, nil
 end
 
+-- Connects ProximityPromptService.PromptTriggered so a triggered "StealPrompt" resolves its slot and calls Steal.try for the player.
+-- Returns nothing.
 function Steal.bind()
 	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
 		if prompt.Name ~= "StealPrompt" then

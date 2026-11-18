@@ -23,6 +23,18 @@
 --  10. income tick: Pedestal.start starts the income loop (every Config.incomeTickRate seconds).
 --  11. Lock.start (lock countdown ticker), Dock.start (restocking), Storm.start (storm cycle), Save.bind (save all on BindToClose).
 --  12. state push loop: every Config.statePushRate seconds push each player's state and lock alert.
+--
+-- module contract (derived from the code below):
+--   owns:    the ReplicatedStorage.Net folder and its State, Notify and Alert RemoteEvents; Players.CharacterAutoLoads = true;
+--            the lastPushedCash table (per-player cash at the last state push, used for the payload "gain" field);
+--            the joinQueue / joinRunning pair that serialises joins one player at a time; the onLeave teardown order;
+--            the state push loop that fires State (serialized PlayerState + stormIn, basePosition, gain) and Alert (lock kind).
+--   refuses: to finish a join for a player who left during Save.load (player.Parent ~= Players returns early);
+--            to run a second join pump while one is running (joinRunning guard); to queue-process players no longer in Players;
+--            to give a character, pedestal sync or first push to a player with no free base (warns, restores carry, returns);
+--            to let a failed Save.load abort the join (warns and starts fresh with nil data);
+--            to let one failing leave step, join or push stop the others (each wrapped in pcall and warned).
+--   returns: nothing; this is the server entry Script, not a ModuleScript, so no module table is exported.
 
 -- services
 local Players = game:GetService("Players")
@@ -52,6 +64,8 @@ net.Parent = ReplicatedStorage
 
 -- === remotes ===
 -- remote factory
+-- remote(name): creates a RemoteEvent with the given name and parents it under ReplicatedStorage.Net.
+-- returns: the new RemoteEvent.
 local function remote(name: string): RemoteEvent
 	local event = Instance.new("RemoteEvent")
 	event.Name = name
@@ -86,6 +100,8 @@ local lastPushedCash: { [Player]: number } = {}
 
 -- === player lifecycle ===
 -- state push to one player
+-- push(player, previousCash?): serializes the player's state, adds stormIn, basePosition and gain, and fires State to them.
+-- returns: nothing; does nothing when PlayerState.serialize yields no payload.
 local function push(player: Player, previousCash: number?)
 	local payload = PlayerState.serialize(player)
 	if payload then
@@ -100,6 +116,8 @@ local function push(player: Player, previousCash: number?)
 end
 
 -- join handler
+-- onPlayer(player): loads save data, creates state, assigns a base, spawns the character, restores carry, syncs pedestals, pushes and welcomes.
+-- returns: nothing; returns early if the player left during load or no free base exists.
 local function onPlayer(player: Player)
 	local loaded: { [string]: any }? = nil
 	local ok, result = pcall(function()
@@ -136,6 +154,8 @@ local joinQueue: { Player } = {}
 local joinRunning = false
 
 -- join queue pump
+-- pumpJoins(): drains joinQueue one player at a time, running onPlayer under pcall for players still in the game.
+-- returns: nothing; exits immediately if a pump is already running.
 local function pumpJoins()
 	if joinRunning then
 		return
@@ -154,12 +174,16 @@ local function pumpJoins()
 end
 
 -- join enqueue
+-- queueJoin(player): appends the player to joinQueue and spawns a pumpJoins task.
+-- returns: nothing.
 local function queueJoin(player: Player)
 	table.insert(joinQueue, player)
 	task.spawn(pumpJoins)
 end
 
 -- leave handler
+-- onLeave(player): saves, then clears carry, the base's pedestals, steal state, the base and player state, each step isolated by pcall.
+-- returns: nothing.
 local function onLeave(player: Player)
 	local ok, err = pcall(function()
 		Save.save(player)

@@ -16,6 +16,15 @@ local Storm = require(script.Parent:WaitForChild("Storm"))
 local boards: { [number]: TextLabel } = {}
 local watching = false
 
+-- === module table ===
+-- Owns: each base's lock window, written through Bases.setLock (clock + Config.lockDuration, cleared with 0);
+--   fence collision on FencePost/Rail/Gate parts, tagged with the LockSolid attribute by applySolid;
+--   the LockCountdown billboards kept in `boards`; the LockPrompt proximity prompts placed by Lock.init;
+--   and the single tick loop guarded by `watching` (Lock.start / Lock.stop).
+-- Refuses: Lock.lock when the player has no base, is not record.owner, or the base is already locked;
+--   LockPrompt triggers from a prompt that is not on the triggering player's own base (Lock.bind);
+--   passage via Lock.canPass to anyone but record.owner while the base is locked.
+-- Returns: this Lock table (isLocked, baseLocked, remaining, lock, unlock, tick, init, bind, start, stop, canPass).
 local Lock = {}
 
 -- === fence and board ===

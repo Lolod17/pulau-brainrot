@@ -1,6 +1,19 @@
 -- Storm: owns the periodic storm cycle and the storm/notify remotes that broadcast to clients.
 -- Server gameplay is authoritative; the client only renders and sends intents.
 -- Public API: Storm.secondsUntilNext, Storm.init, Storm.bind, Storm.start, Storm.fireAlert, Storm.notify, Storm.notifyAll, Storm.fireBroadcast
+--
+-- Module contract (derived from the code below):
+-- Owns: the storm timer (first storm after FIRST_STORM seconds, then every INTERVAL seconds),
+--   the warning/wave/clear phase broadcasts on the Net.Storm RemoteEvent, the Net.Alert
+--   RemoteEvent used for player notifications, the workspace.Shells folder and every Shell
+--   part and ProximityPrompt spawned into it, and the Lighting darken/restore tweens.
+-- Refuses: to open a shell that is already opened, has left the Shells folder, or is used by a
+--   player with no state or one already carrying; to sweep a player whose carried model is
+--   held inside their own base or parented under a base (BaseIndex attribute); to fire any
+--   remote before init has created it (alert/storm calls are silent no-ops until then).
+-- Returns: the Storm table from the module, from Storm.init and from Storm.bind;
+--   Storm.secondsUntilNext returns a whole number of seconds; every other public function
+--   returns nothing.
 --!strict
 
 local Players = game:GetService("Players")
@@ -37,6 +50,8 @@ local shellFolder: Folder? = nil
 local islandCenter = Vector3.new(0, 0, 0)
 local pierCenter = Vector3.new(0, 0, 0)
 
+-- Finds the workspace "Pier" (part, folder or model) and caches its position in pierCenter.
+-- Returns nothing; pierCenter is left unchanged when no usable pier is found.
 local function resolvePier()
 	local pier = workspace:FindFirstChild("Pier", true)
 	if pier and pier:IsA("BasePart") then
@@ -60,6 +75,8 @@ local function resolvePier()
 	end
 end
 
+-- Converts the cumulative Config.tiers thresholds into a per-rarity probability weight.
+-- Returns a map of rarity name to weight (threshold span divided by 1000).
 local function rarityWeights(): { [string]: number }
 	local weights: { [string]: number } = {}
 	local prev = 0
@@ -70,6 +87,8 @@ local function rarityWeights(): { [string]: number }
 	return weights
 end
 
+-- Picks one rarity from the given list using the Config-derived weights.
+-- Returns the rolled rarity, the first entry if all weights are zero, or the last as fallback.
 local function rollFrom(list: { string }): string
 	local weights = rarityWeights()
 	local total = 0
@@ -89,6 +108,8 @@ local function rollFrom(list: { string }): string
 	return list[#list]
 end
 
+-- Collects every Cast entry whose rarity matches the requested rarity.
+-- Returns an array of matching entries, empty when none match or Cast.entries is missing.
 local function poolFor(rarity: string): { any }
 	local pool: { any } = {}
 	if typeof(Cast.entries) == "table" then
@@ -101,6 +122,8 @@ local function poolFor(rarity: string): { any }
 	return pool
 end
 
+-- Measures flat (XZ) distance from the island centre to choose a shell rarity band.
+-- Returns the near, mid or far rarity list from SHELL_TIERS.
 local function tiersForDistance(position: Vector3): { string }
 	local flat = Vector3.new(position.X, 0, position.Z)
 	local center = Vector3.new(islandCenter.X, 0, islandCenter.Z)
@@ -113,6 +136,8 @@ local function tiersForDistance(position: Vector3): { string }
 	return SHELL_TIERS.far
 end
 
+-- Rolls a rarity for the position and picks a random Cast entry of that rarity.
+-- Returns the chosen Cast entry, or nil when the rolled rarity has no entries.
 local function chooseCharacter(position: Vector3): any?
 	local rarity = rollFrom(tiersForDistance(position))
 	local pool = poolFor(rarity)
@@ -122,6 +147,8 @@ local function chooseCharacter(position: Vector3): any?
 	return pool[math.random(1, #pool)]
 end
 
+-- Spawns a Shell part with an "Open" prompt that attaches a rolled character to the opener.
+-- Returns nothing; the shell self-destructs after SHELL_LIFETIME seconds or once opened.
 local function spawnShell(position: Vector3)
 	local folder = shellFolder
 	if not folder then
@@ -196,6 +223,8 @@ end
 local stormStartAt: number? = nil
 local stormEndAt: number? = nil
 
+-- Stamps the phase name onto the payload and fires it to all clients over the Storm remote.
+-- Returns nothing; silently skips the fire when the Storm remote does not exist yet.
 local function broadcastPhase(phase: string, payload: { [string]: any }?)
 	local data = payload or {}
 	data.phase = phase
@@ -204,6 +233,8 @@ local function broadcastPhase(phase: string, payload: { [string]: any }?)
 	end
 end
 
+-- Reports time until the next storm start, or until the current clear phase ends.
+-- Returns whole seconds (never negative), or INTERVAL when no timer is scheduled.
 function Storm.secondsUntilNext(): number
 	local now = os.clock()
 	local target: number? = nil
@@ -218,6 +249,8 @@ function Storm.secondsUntilNext(): number
 	return math.max(0, math.ceil(target - now))
 end
 
+-- Checks whether the player is protected by their base: locked, or within 40 studs of its centre.
+-- Returns true when protected, false when the player has no base or is outside it.
 local function inOwnBase(player: Player, position: Vector3): boolean
 	local record = Bases.get(player)
 	if not record then
@@ -237,12 +270,16 @@ local function inOwnBase(player: Player, position: Vector3): boolean
 	return false
 end
 
+-- Checks whether a position lies within 48 studs (XZ only) of the cached pier centre.
+-- Returns true when on or near the pier, false otherwise.
 local function onPier(position: Vector3): boolean
 	local distance = Vector3.new(position.X, 0, position.Z) - Vector3.new(pierCenter.X, 0, pierCenter.Z)
 	local probe = Vector3.new(distance.X, 0, distance.Z).Magnitude
 	return probe <= 48
 end
 
+-- Walks up the instance's ancestors looking for one tagged with a BaseIndex attribute.
+-- Returns true when the instance sits under a base, false otherwise.
 local function underABase(instance: Instance): boolean
 	local current: Instance? = instance.Parent
 	while current do
@@ -254,6 +291,8 @@ local function underABase(instance: Instance): boolean
 	return false
 end
 
+-- Sweeps exposed players (on the pier, or carrying outside their base) into shells and respawns them.
+-- Returns the number of players swept; seeds three pier shells when nobody was swept.
 local function sweep()
 	resolvePier()
 	local swept = 0
@@ -303,12 +342,16 @@ local function sweep()
 	return swept
 end
 
+-- Broadcasts the "wave" phase, waits WAVE_TIME seconds, then runs the player sweep.
+-- Returns nothing; the sweep count is discarded.
 local function waveSweep()
 	broadcastPhase("wave", { toward = "island" })
 	task.wait(WAVE_TIME)
 	sweep()
 end
 
+-- Tweens Lighting to the dim storm palette over the given duration in seconds.
+-- Returns nothing; the tween plays asynchronously.
 local function darken(duration: number)
 	local tween = TweenService:Create(Lighting, TweenInfo.new(duration), {
 		Ambient = Color3.fromRGB(64, 70, 86),
@@ -318,6 +361,8 @@ local function darken(duration: number)
 	tween:Play()
 end
 
+-- Tweens Lighting back to the bright daytime palette over four seconds.
+-- Returns nothing; the tween plays asynchronously.
 local function restore()
 	local tween = TweenService:Create(Lighting, TweenInfo.new(4), {
 		Ambient = Color3.fromRGB(158, 184, 204),
@@ -327,6 +372,8 @@ local function restore()
 	tween:Play()
 end
 
+-- Runs one full storm: darken and warn, wait, wave sweep, then broadcast clear and restore light.
+-- Returns nothing; yields for roughly WARN_TIME + WAVE_TIME seconds.
 local function runStorm()
 	darken(WARN_TIME)
 	broadcastPhase("warning", { seconds = WARN_TIME })
@@ -337,6 +384,8 @@ local function runStorm()
 	restore()
 end
 
+-- Finds or creates the Net folder, Storm/Alert remotes and Shells folder; caches island centre and pier.
+-- Returns the Storm module table for chaining.
 function Storm.init(anchors: any)
 	net = ReplicatedStorage:WaitForChild("Net", 10)
 	if not net then
@@ -372,10 +421,14 @@ function Storm.init(anchors: any)
 	return Storm
 end
 
+-- No-op bind hook kept for a uniform module lifecycle (init, bind, start).
+-- Returns the Storm module table for chaining.
 function Storm.bind()
 	return Storm
 end
 
+-- Starts the endless storm loop in a new thread, tracking start/end times for the countdown.
+-- Returns nothing; a failed storm is warned about and the loop continues.
 function Storm.start()
 	stormStartAt = os.clock() + FIRST_STORM
 	task.spawn(function()
@@ -394,24 +447,32 @@ function Storm.start()
 	end)
 end
 
+-- Sends a raw alert payload to one player over the Alert remote.
+-- Returns nothing; skips silently before init has created the remote.
 function Storm.fireAlert(player: Player, data: { [string]: any })
 	if alertEvent then
 		alertEvent:FireClient(player, data)
 	end
 end
 
+-- Sends a kind/text/colour notification to one player over the Alert remote.
+-- Returns nothing; skips silently before init has created the remote.
 function Storm.notify(player: Player, kind: string, text: string, color: Color3?)
 	if alertEvent then
 		alertEvent:FireClient(player, { kind = kind, text = text, color = color })
 	end
 end
 
+-- Sends a kind/text/colour notification to every player over the Alert remote.
+-- Returns nothing; skips silently before init has created the remote.
 function Storm.notifyAll(kind: string, text: string, color: Color3?)
 	if alertEvent then
 		alertEvent:FireAllClients({ kind = kind, text = text, color = color })
 	end
 end
 
+-- Sends a raw alert payload to every player over the Alert remote.
+-- Returns nothing; skips silently before init has created the remote.
 function Storm.fireBroadcast(data: { [string]: any })
 	if alertEvent then
 		alertEvent:FireAllClients(data)

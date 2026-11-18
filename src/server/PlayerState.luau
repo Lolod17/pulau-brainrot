@@ -30,9 +30,18 @@ export type State = {
 
 local byPlayer: { [any]: State } = {}
 
+-- PlayerState module table.
+-- Owns: the private byPlayer map holding one State per player (cash, rebirths, baseIndex, slots, carrying, userId).
+-- Refuses: a second create for the same player (returns the existing State); loaded cash/rebirths that are not numbers;
+--   loaded slot/carrying ids that Cast.getById cannot resolve; spendCash with a negative cost or more than the player holds;
+--   setSlot indexes outside 1..Config.slotCount; cash going below 0 in addCash; every mutator is a no-op when no State exists.
+-- Returns: State from create/get, new cash from addCash, boolean from spendCash, numbers from incomeMultiplier/placedIncome,
+--   a plain save table (with incomeRate) or nil from serialize, and a fresh Slot from slotFromEntry.
 local PlayerState = {}
 
 -- === state lifecycle ===
+-- Builds an empty slot list sized to Config.slotCount with every entry nil.
+-- Returns: a fresh { Slot? } table with no occupied slots.
 local function blankSlots(): { Slot? }
 	local slots: { Slot? } = {}
 	for i = 1, Config.slotCount do
@@ -41,6 +50,8 @@ local function blankSlots(): { Slot? }
 	return slots
 end
 
+-- Creates the player's State from defaults, overlaying validated cash, rebirths, carrying and slots from a loaded save.
+-- Returns: the new State, or the already existing State if the player has one.
 function PlayerState.create(player: any, loaded: { [string]: any }?): State
 	local existing = byPlayer[player]
 	if existing then
@@ -93,11 +104,15 @@ function PlayerState.create(player: any, loaded: { [string]: any }?): State
 	return state
 end
 
+-- Looks up the player's current State.
+-- Returns: the State, or nil if the player has none.
 function PlayerState.get(player: any): State?
 	return byPlayer[player]
 end
 
 -- === cash ===
+-- Adds the floored amount to the player's cash, clamping the result at 0.
+-- Returns: the player's new cash, or 0 if the player has no State.
 function PlayerState.addCash(player: any, amount: number): number
 	local state = byPlayer[player]
 	if not state then
@@ -110,6 +125,8 @@ function PlayerState.addCash(player: any, amount: number): number
 	return state.cash
 end
 
+-- Deducts the floored amount from cash if the player has a State, the cost is non-negative and affordable.
+-- Returns: true if the cash was spent, false otherwise.
 function PlayerState.spendCash(player: any, amount: number): boolean
 	local state = byPlayer[player]
 	local cost = math.floor(amount)
@@ -121,6 +138,8 @@ function PlayerState.spendCash(player: any, amount: number): boolean
 end
 
 -- === base and slots ===
+-- Sets (or clears with nil) the player's base index when the player has a State.
+-- Returns: nothing.
 function PlayerState.setBase(player: any, index: number?)
 	local state = byPlayer[player]
 	if state then
@@ -128,6 +147,8 @@ function PlayerState.setBase(player: any, index: number?)
 	end
 end
 
+-- Sets (or clears with nil) the slot the player is carrying when the player has a State.
+-- Returns: nothing.
 function PlayerState.setCarrying(player: any, slot: Slot?)
 	local state = byPlayer[player]
 	if state then
@@ -135,6 +156,8 @@ function PlayerState.setCarrying(player: any, slot: Slot?)
 	end
 end
 
+-- Puts a slot (or nil) at index when the player has a State and index is within 1..Config.slotCount.
+-- Returns: nothing.
 function PlayerState.setSlot(player: any, index: number, slot: Slot?)
 	local state = byPlayer[player]
 	if state and index >= 1 and index <= Config.slotCount then
@@ -142,6 +165,8 @@ function PlayerState.setSlot(player: any, index: number, slot: Slot?)
 	end
 end
 
+-- Empties every slot from 1 to Config.slotCount when the player has a State.
+-- Returns: nothing.
 function PlayerState.clearSlots(player: any)
 	local state = byPlayer[player]
 	if not state then
@@ -153,6 +178,8 @@ function PlayerState.clearSlots(player: any)
 end
 
 -- === derived values ===
+-- Computes the rebirth income multiplier from Config.rebirthIncomeBonus and the player's rebirths.
+-- Returns: 1 + rebirthIncomeBonus * rebirths, or 1 if the player has no State.
 function PlayerState.incomeMultiplier(player: any): number
 	local state = byPlayer[player]
 	if not state then
@@ -161,6 +188,8 @@ function PlayerState.incomeMultiplier(player: any): number
 	return 1 + Config.rebirthIncomeBonus * state.rebirths
 end
 
+-- Sums the base income of every occupied slot.
+-- Returns: the total placed income, or 0 if the player has no State.
 function PlayerState.placedIncome(player: any): number
 	local state = byPlayer[player]
 	if not state then
@@ -177,6 +206,8 @@ function PlayerState.placedIncome(player: any): number
 end
 
 -- === serialization ===
+-- Copies the player's State into a plain save table with empty slots/carrying as false and baseIndex 0 when nil.
+-- Returns: the table (cash, rebirths, baseIndex, slots, carrying, incomeRate), or nil if the player has no State.
 function PlayerState.serialize(player: any): { [string]: any }?
 	local state = byPlayer[player]
 	if not state then
@@ -215,10 +246,14 @@ function PlayerState.serialize(player: any): { [string]: any }?
 	}
 end
 
+-- Drops the player's State from the byPlayer map.
+-- Returns: nothing.
 function PlayerState.clear(player: any)
 	byPlayer[player] = nil
 end
 
+-- Builds a Slot from a Cast entry's id, name, income and price.
+-- Returns: a new Slot table.
 function PlayerState.slotFromEntry(entry: Cast.Entry): Slot
 	return {
 		id = entry.id,

@@ -329,6 +329,18 @@ local function weldAssembly(model: Model, root: BasePart)
 	end
 end
 
+-- Factory: the module's public table.
+-- Owns: building brainrot Models from a Cast entry's recipe (parts, height scale, NameSign with
+--   Locked/name/rarity/income faces, rarity aura, kraken_emas gold light and rainbow trail/beam,
+--   paus_api blowhole flame, welds); the idle animation registry (idleRecords, idleList) ticked
+--   on one Heartbeat connection at most IDLE_BUDGET (200) models per step; head carry via the
+--   CarryWeld Motor6D and CarryShadow disc; dropping back to workspace; sign rehanging.
+-- Refuses: create errors (assert) when a recipe has no Body part; animate ignores models already
+--   registered, a non-string BrainrotId or an id with no species animation; freeze ignores
+--   unregistered models; weldAboveHead does nothing without a Head/HumanoidRootPart or a
+--   PrimaryPart; rehangSign does nothing without a PrimaryPart or a Cast.getById entry.
+--   It never reads player data, ownership, money or bases; its only dependency is Cast.
+-- Returns: this Factory table; create returns the new Model, every other function returns nothing.
 local Factory = {}
 
 local IDLE_BUDGET = 200

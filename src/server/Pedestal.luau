@@ -60,6 +60,16 @@ local showcaseClock = 0
 local visuals: { Visual } = {}
 local ticking = false
 
+-- === module table ===
+-- Owns: the visuals list (one Visual per base pedestal: top part, placed model, PlacePrompt, SellPrompt,
+--   showcase), the showcases list and rings map spun by the single Heartbeat showcaseTicker, and the
+--   ticking flag that drives the income loop started by Pedestal.start.
+-- Refuses: place when record.owner ~= player, when state.carrying is nil, or when the slot is already
+--   filled; sell when record.owner ~= player, when there is no state, or when the slot is empty;
+--   tryPlace/trySell on an unknown base/slot pair; prompt triggers whose parent is not a known pedestal
+--   BasePart; a second income loop while ticking; showcases for rarities missing from RARITY_TIER.
+-- Returns: this Pedestal table; Pedestal.visual returns Visual?, tryPlace returns boolean, trySell
+--   returns the cash payout (0 when refused), and every other public function returns nothing.
 local Pedestal = {}
 
 -- === showcase effect ===
