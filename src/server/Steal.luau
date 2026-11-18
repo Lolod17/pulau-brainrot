@@ -46,6 +46,8 @@ function Steal.reason(thief: Player, baseIndex: number, slotIndex: number, now: 
 end
 
 function Steal.try(thief: Player, baseIndex: number, slotIndex: number, now: number?): (boolean, Reason)
+	local clock = now or os.clock()
+	cooldownUntil[thief] = clock + Config.stealCooldown
 	local why = Steal.reason(thief, baseIndex, slotIndex, now)
 	if why ~= "ok" then
 		return false, why

@@ -285,12 +285,23 @@ local function onTake(prompt: ProximityPrompt, player: Player)
 	end
 	model:SetAttribute("Docked", false)
 	prompt:Destroy()
-	local attached = Carry.attach(player, PlayerState.slotFromEntry(entry), model)
+	local slot = PlayerState.slotFromEntry(entry)
+	local attached = Carry.attach(player, slot, nil)
 	if not attached then
 		model:SetAttribute("Docked", true)
+		for _, spot in spots do
+			if spot.part == root.Parent then
+				spot.model = model
+				break
+			end
+		end
 		if root.Parent then
 			makePrompt(root)
 		end
+		return
+	end
+	if model.Parent and model ~= Carry.modelOf(player) then
+		Factory.remove(model)
 	end
 end
 

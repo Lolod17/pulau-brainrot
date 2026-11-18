@@ -77,15 +77,21 @@ local function onPlayer(player: Player)
 	local ok, result = pcall(function()
 		return Save.load(player)
 	end)
+	if not ok then
+		warn("[Save] join load failed, starting fresh: " .. tostring(result))
+	end
+	if player.Parent ~= Players then
+		return
+	end
 	if ok and typeof(result) == "table" then
 		loaded = result
-	elseif not ok then
-		warn("[Save] join load failed, starting fresh: " .. tostring(result))
 	end
 	PlayerState.create(player, loaded)
 	local record = Bases.assign(player)
 	if not record then
 		warn("[Bases] no free base for " .. player.Name)
+		Carry.restore(player)
+		return
 	end
 	Bases.bindCharacter(player)
 	player:LoadCharacter()
@@ -95,6 +101,31 @@ local function onPlayer(player: Player)
 	lastPushedCash[player] = if startState then startState.cash else nil
 	push(player)
 	Storm.notify(player, "join", "Welcome to Pulau Brainrot")
+end
+
+local joinQueue: { Player } = {}
+local joinRunning = false
+
+local function pumpJoins()
+	if joinRunning then
+		return
+	end
+	joinRunning = true
+	while #joinQueue > 0 do
+		local player = table.remove(joinQueue, 1)
+		if player.Parent == Players then
+			local ok, err = pcall(onPlayer, player)
+			if not ok then
+				warn("[Server] join failed: " .. tostring(err))
+			end
+		end
+	end
+	joinRunning = false
+end
+
+local function queueJoin(player: Player)
+	table.insert(joinQueue, player)
+	task.spawn(pumpJoins)
 end
 
 local function onLeave(player: Player)
@@ -125,10 +156,7 @@ end
 
 -- === player lifecycle ===
 Players.PlayerAdded:Connect(function(player)
-	local ok, err = pcall(onPlayer, player)
-	if not ok then
-		warn("[Server] join failed: " .. tostring(err))
-	end
+	queueJoin(player)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
@@ -139,7 +167,7 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 for _, player in Players:GetPlayers() do
-	task.spawn(onPlayer, player)
+	queueJoin(player)
 end
 
 Pedestal.start()

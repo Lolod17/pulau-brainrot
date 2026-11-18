@@ -25,7 +25,7 @@ local function ensureFollow()
 		for player, model in held do
 			local character = player.Character
 			local anchor = model.PrimaryPart
-			if not character or not anchor or not anchor.Parent then
+			if not character or not anchor or not anchor.Parent or not model.Parent then
 				continue
 			end
 			local head = character:FindFirstChild("Head")
@@ -42,7 +42,17 @@ local function ensureFollow()
 			local alpha = math.clamp(0.35, 0, 1)
 			anchor.CFrame = anchor.CFrame:Lerp(goal, alpha)
 		end
+		dropDetached()
 	end)
+end
+
+local function dropDetached()
+	for player, model in held do
+		if not model.Parent then
+			held[player] = nil
+			PlayerState.setCarrying(player, nil)
+		end
+	end
 end
 
 function Carry.isCarrying(player: Player): boolean
@@ -70,11 +80,20 @@ function Carry.attach(player: Player, slot: Slot, existing: Model?): Model?
 	if not entry then
 		return nil
 	end
+	if existing and not existing.Parent then
+		existing = nil
+	end
 	local model = existing
 	if not model then
 		local root = character:FindFirstChild("HumanoidRootPart")
 		local at = if root and root:IsA("BasePart") then root.Position + Vector3.new(0, 6, 0) else Vector3.new(0, 8, 0)
 		model = Factory.create(entry, at)
+	end
+	if not model.PrimaryPart then
+		if not existing then
+			model:Destroy()
+		end
+		return nil
 	end
 	PlayerState.setCarrying(player, {
 		id = entry.id,
@@ -102,6 +121,9 @@ function Carry.takeModel(player: Player): Model?
 	local model = held[player]
 	held[player] = nil
 	PlayerState.setCarrying(player, nil)
+	if model and not model.Parent then
+		return nil
+	end
 	return model
 end
 
@@ -121,9 +143,10 @@ function Carry.restore(player: Player)
 	if not state or not state.carrying or held[player] then
 		return
 	end
-	local slot = state.carrying
-	PlayerState.setCarrying(player, nil)
-	Carry.attach(player, slot, nil)
+	if not player.Character then
+		return
+	end
+	Carry.attach(player, state.carrying, nil)
 end
 
 function Carry.stop()

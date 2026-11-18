@@ -233,20 +233,31 @@ local function refresh(visual: Visual)
 	local owner = record and record.owner
 	local state = owner and PlayerState.get(owner)
 	local slot = state and state.slots[visual.slotIndex]
-	visual.sellPrompt.Enabled = slot ~= nil
-	visual.placePrompt.Enabled = true
-	if slot then
-		visual.sellPrompt.ObjectText = slot.name
-		visual.placePrompt.Enabled = false
-	else
+	if not slot then
+		if visual.model then
+			Factory.remove(visual.model)
+			visual.model = nil
+		end
+		clearShowcase(visual)
+		visual.sellPrompt.Enabled = false
+		visual.placePrompt.Enabled = true
 		visual.sellPrompt.ObjectText = "Empty"
+		return
 	end
+	if visual.model and not visual.model.Parent then
+		visual.model = nil
+	end
+	visual.sellPrompt.Enabled = true
+	visual.placePrompt.Enabled = false
+	visual.sellPrompt.ObjectText = slot.name
 end
 
 -- === slot visuals ===
 local function showSlot(visual: Visual, slot: Slot?)
 	if visual.model then
-		Factory.remove(visual.model)
+		if visual.model.Parent then
+			Factory.remove(visual.model)
+		end
 		visual.model = nil
 	end
 	if not slot then
@@ -322,6 +333,11 @@ function Pedestal.clearBase(baseIndex: number)
 		local visual = Pedestal.visual(baseIndex, slotIndex)
 		if visual then
 			showSlot(visual, nil)
+			visual.model = nil
+			clearShowcase(visual)
+			visual.sellPrompt.Enabled = false
+			visual.placePrompt.Enabled = true
+			visual.sellPrompt.ObjectText = "Empty"
 		end
 	end
 end

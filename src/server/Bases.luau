@@ -28,6 +28,7 @@ type Record = {
 
 local records: { Record } = {}
 local byPlayer: { [Player]: Record } = {}
+local waiting: { Player } = {}
 
 local Bases = {}
 
@@ -53,6 +54,7 @@ end
 function Bases.init(anchors: Anchors)
 	table.clear(records)
 	table.clear(byPlayer)
+	table.clear(waiting)
 	local count = math.min(#anchors.plotCentres, Config.baseCount)
 	for i = 1, count do
 		local centre = anchors.plotCentres[i]
@@ -83,6 +85,19 @@ function Bases.getByIndex(index: number): Record?
 	return records[index]
 end
 
+local function dequeue(player: Player)
+	for i = #waiting, 1, -1 do
+		if waiting[i] == player then
+			table.remove(waiting, i)
+		end
+	end
+end
+
+local function enqueue(player: Player)
+	dequeue(player)
+	table.insert(waiting, player)
+end
+
 function Bases.assign(player: Player): Record?
 	local held = byPlayer[player]
 	if held then
@@ -92,6 +107,7 @@ function Bases.assign(player: Player): Record?
 		if record.owner == nil then
 			record.owner = player
 			byPlayer[player] = record
+			dequeue(player)
 			PlayerState.setBase(player, record.index)
 			if record.board then
 				record.board.Text = player.Name
@@ -99,20 +115,32 @@ function Bases.assign(player: Player): Record?
 			return record
 		end
 	end
+	enqueue(player)
 	return nil
 end
 
 function Bases.release(player: Player)
 	local record = byPlayer[player]
 	if not record then
+		dequeue(player)
 		return
 	end
 	record.owner = nil
-	record.lockedUntil = 0
 	byPlayer[player] = nil
 	PlayerState.setBase(player, nil)
+	local Lock = require(script.Parent:WaitForChild("Lock"))
+	Lock.unlock(record.index)
 	if record.board then
 		record.board.Text = "Pemilik"
+	end
+	while #waiting > 0 do
+		local nextPlayer = table.remove(waiting, 1)
+		if nextPlayer.Parent == Players and not byPlayer[nextPlayer] then
+			if Bases.assign(nextPlayer) then
+				Bases.spawnAt(nextPlayer)
+				break
+			end
+		end
 	end
 end
 
@@ -138,7 +166,9 @@ function Bases.spawnAt(player: Player)
 		return
 	end
 	if not byPlayer[player] then
-		Bases.assign(player)
+		if not Bases.assign(player) then
+			return
+		end
 	end
 	Bases.teleport(player)
 end
