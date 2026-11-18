@@ -1,3 +1,5 @@
+-- Lock: owns base locking: fence solidity, the lock countdown board, and the lock prompt and ticker.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -11,6 +13,7 @@ local watching = false
 
 local Lock = {}
 
+-- === fence and board ===
 local function fenceParts(model: Instance): { BasePart }
 	local parts: { BasePart } = {}
 	for _, descendant in model:GetDescendants() do
@@ -75,6 +78,7 @@ local function ensureBoard(record: any): TextLabel?
 	return label
 end
 
+-- === public api ===
 function Lock.isLocked(player: Player, now: number?): boolean
 	local record = Bases.get(player)
 	if not record then

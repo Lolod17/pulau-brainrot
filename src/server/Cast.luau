@@ -1,3 +1,5 @@
+-- Cast: owns the brainrot catalogue: part recipes per species, rarity weights, and roll/lookup helpers.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 export type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary" | "Mythic" | "Ultra Rare"
@@ -32,6 +34,7 @@ local PLASTIC = Enum.Material.SmoothPlastic
 local METAL = Enum.Material.Metal
 local NEON = Enum.Material.Neon
 
+-- === part builders ===
 local function part(
 	name: string,
 	shape: Enum.PartType,
@@ -78,6 +81,7 @@ local GOLD_DEEP = Color3.fromRGB(212, 152, 24)
 local BLACK = Color3.fromRGB(22, 22, 26)
 local WHITE = Color3.fromRGB(245, 245, 248)
 
+-- === catalogue ===
 local ENTRIES: { Entry } = {
 	{
 		id = "ikan_terbang",
@@ -327,6 +331,7 @@ local Cast = {
 	byName = nameLookup,
 }
 
+-- === public api ===
 function Cast.roll(rng: Random?): Entry
 	local n = if rng then rng:NextInteger(1, 1000) else math.random(1, 1000)
 	for _, entry in ENTRIES do

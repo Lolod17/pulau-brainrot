@@ -1,3 +1,5 @@
+-- Pedestal: owns pedestal slots: placed models, rarity showcases, place/sell prompts, and passive income ticks.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -55,6 +57,7 @@ local ticking = false
 
 local Pedestal = {}
 
+-- === showcase effect ===
 local function startShowcaseTicker()
 	if showcaseTicker then
 		return
@@ -150,6 +153,7 @@ local function clearShowcase(visual: Visual)
 	visual.showcase = nil
 end
 
+-- === showcase effect ===
 local function buildShowcase(visual: Visual, entry: Cast.Entry)
 	clearShowcase(visual)
 	local tier = RARITY_TIER[entry.rarity]
@@ -210,6 +214,7 @@ local function buildShowcase(visual: Visual, entry: Cast.Entry)
 	startShowcaseTicker()
 end
 
+-- === prompt helpers ===
 local function promptOn(host: BasePart, name: string, action: string, objectText: string, hold: number): ProximityPrompt
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = name
@@ -237,6 +242,7 @@ local function refresh(visual: Visual)
 	end
 end
 
+-- === slot visuals ===
 local function showSlot(visual: Visual, slot: Slot?)
 	if visual.model then
 		Factory.remove(visual.model)
@@ -268,6 +274,7 @@ local function showSlot(visual: Visual, slot: Slot?)
 	refresh(visual)
 end
 
+-- === public api ===
 function Pedestal.init()
 	table.clear(visuals)
 	for _, record in Bases.records() do

@@ -1,3 +1,5 @@
+-- Hud: owns the client HUD: cash and income readouts, carry panel, status lines, storm banner, and alert cards.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local Players = game:GetService("Players")
@@ -31,6 +33,7 @@ local bannerHideAt: number? = nil
 local lastCashText = ""
 local basePosition: Vector3? = nil
 
+-- === formatting ===
 local function comma(value: number): string
 	local whole = math.floor(math.abs(value))
 	local text = tostring(whole)
@@ -56,6 +59,7 @@ local function clock(seconds: number): string
 	return string.format("%d:%02d", minutes, secs)
 end
 
+-- === label helper ===
 local function makeLabel(parent: Instance, name: string, size: UDim2, position: UDim2, textSize: number, color: Color3): TextLabel
 	local label = Instance.new("TextLabel")
 	label.Name = name
@@ -75,6 +79,7 @@ local function makeLabel(parent: Instance, name: string, size: UDim2, position: 
 	return label
 end
 
+-- === alert styling ===
 local ALERT_STYLE: { [string]: { color: Color3, icon: string } } = {
 	stolen = { color = Color3.fromRGB(255, 110, 110), icon = "[THIEF]" },
 	stole = { color = Color3.fromRGB(255, 190, 90), icon = "[STEAL]" },
@@ -84,6 +89,7 @@ local ALERT_STYLE: { [string]: { color: Color3, icon: string } } = {
 	rebirth = { color = Color3.fromRGB(255, 210, 120), icon = "[REBIRTH]" },
 }
 
+-- === alert stack ===
 local function pushAlert(data: { [string]: any })
 	local stack = alertStack
 	if not stack then
@@ -133,6 +139,7 @@ local function pushAlert(data: { [string]: any })
 	end)
 end
 
+-- === public api ===
 function Hud.build()
 	local existing = player:FindFirstChild("PlayerGui")
 	local container = existing and existing:FindFirstChild("PulauHud")
@@ -241,6 +248,7 @@ function Hud.build()
 	return Hud
 end
 
+-- === inner updates ===
 local function updateScaling()
 	local screen = gui
 	if not screen then
@@ -255,6 +263,7 @@ local function updateScaling()
 	end
 end
 
+-- === storm text ===
 local function stormText(): string
 	local seconds: number? = nil
 	if nextStormAt then
@@ -271,6 +280,7 @@ local function stormText(): string
 	return "Next storm: " .. clock(seconds)
 end
 
+-- === inner updates ===
 local function refreshStorm()
 	if not stormLabel then
 		return
@@ -287,6 +297,7 @@ local function refreshStorm()
 	end
 end
 
+-- === public api ===
 function Hud.update(state: { [string]: any })
 	if not gui then
 		return
@@ -341,6 +352,7 @@ function Hud.update(state: { [string]: any })
 	end
 end
 
+-- === public api ===
 local ticker: RBXScriptConnection? = nil
 
 function Hud.tick()

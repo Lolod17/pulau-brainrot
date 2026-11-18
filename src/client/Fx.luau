@@ -1,3 +1,5 @@
+-- Fx: owns client-side visual feedback: money bursts and floating gains, rare cards, storm flashes, and screen shake.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local Players = game:GetService("Players")
@@ -21,6 +23,7 @@ local billboards: { [Player]: BillboardGui } = {}
 local rareCards: { Frame } = {}
 local MAX_RARE_CARDS = 2
 
+-- === screen flash ===
 local function camera(): Camera?
 	local current = workspace.CurrentCamera
 	if current then
@@ -29,6 +32,7 @@ local function camera(): Camera?
 	return nil
 end
 
+-- === screen flash ===
 local function makeFlash()
 	local container = player:FindFirstChild("PlayerGui")
 	if not container then
@@ -70,6 +74,7 @@ local function effectsFolder(): Instance
 	return folder
 end
 
+-- === world effects ===
 local function burst(position: Vector3, color: Color3)
 	local anchor = Instance.new("Part")
 	anchor.Name = "FxBurst"
@@ -108,6 +113,7 @@ local function burst(position: Vector3, color: Color3)
 	end)
 end
 
+-- === money feedback ===
 local function billboardFor(targetPlayer: Player): BillboardGui?
 	local character = targetPlayer.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -174,6 +180,7 @@ local function floatGain(targetPlayer: Player, amount: number)
 	end)
 end
 
+-- === camera shake ===
 local function screenShake(strength: number, duration: number)
 	shake = math.max(shake, strength)
 	task.delay(duration, function()
@@ -181,6 +188,7 @@ local function screenShake(strength: number, duration: number)
 	end)
 end
 
+-- === public api ===
 function Fx.build()
 	makeFlash()
 	if not renderConn then
@@ -226,6 +234,7 @@ function Fx.money(gain: number, basePosition: Vector3?)
 	floatGain(player, gain)
 end
 
+-- === rare cards ===
 local function goldFlash()
 	local frame = makeFlash()
 	if not frame then
@@ -311,6 +320,7 @@ local function rareCard(data: { [string]: any })
 	end)
 end
 
+-- === public api ===
 function Fx.event(data: { [string]: any })
 	local kind = data.kind
 	if kind == "cash" then

@@ -1,3 +1,5 @@
+-- Carry: owns the single brainrot a player holds above their head, its follow loop, and restoring it across respawns.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local RunService = game:GetService("RunService")

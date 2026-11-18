@@ -1,3 +1,5 @@
+-- Storm: owns the periodic storm cycle and the storm/notify remotes that broadcast to clients.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local Players = game:GetService("Players")

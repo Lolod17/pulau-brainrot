@@ -1,3 +1,5 @@
+-- Save: owns DataStore persistence of player state on join, leave, and server shutdown.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local DataStoreService = game:GetService("DataStoreService")

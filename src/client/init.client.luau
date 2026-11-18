@@ -1,3 +1,5 @@
+-- init.client: owns client bootstrap: building Hud/Fx and mirroring server state, storm, alert, and prompt events.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

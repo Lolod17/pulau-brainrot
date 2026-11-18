@@ -1,3 +1,5 @@
+-- Config: owns the shared gameplay tuning numbers every other server module reads.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local Config = {

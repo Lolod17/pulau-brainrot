@@ -1,3 +1,5 @@
+-- Bases: owns per-player base plots: assignment, ownership boards, teleporting owners to their plot, and the base lock timer.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local Players = game:GetService("Players")
@@ -28,6 +30,7 @@ local byPlayer: { [Player]: Record } = {}
 
 local Bases = {}
 
+-- === lookup helpers ===
 local function findBoard(centre: BasePart): TextLabel?
 	local model = centre.Parent
 	if not model then
@@ -45,6 +48,7 @@ local function findBoard(centre: BasePart): TextLabel?
 	return nil
 end
 
+-- === base assignment ===
 function Bases.init(anchors: Anchors)
 	table.clear(records)
 	table.clear(byPlayer)
@@ -111,6 +115,7 @@ function Bases.release(player: Player)
 	end
 end
 
+-- === character spawn ===
 function Bases.teleport(player: Player)
 	local record = byPlayer[player]
 	local character = player.Character
@@ -137,6 +142,7 @@ function Bases.spawnAt(player: Player)
 	Bases.teleport(player)
 end
 
+-- === character spawn ===
 function Bases.bindCharacter(player: Player)
 	player.CharacterAdded:Connect(function()
 		task.defer(function()
@@ -147,6 +153,7 @@ function Bases.bindCharacter(player: Player)
 	end)
 end
 
+-- === lock state ===
 function Bases.isLocked(record: Record, now: number?): boolean
 	return record.lockedUntil > (now or os.clock())
 end

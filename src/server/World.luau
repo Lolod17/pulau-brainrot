@@ -1,3 +1,5 @@
+-- World: owns generating the island map once at startup and returning the anchors other modules wire to.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local Lighting = game:GetService("Lighting")
@@ -63,6 +65,7 @@ local INK = Color3.fromRGB(62, 36, 18)
 
 local decorCount = 0
 
+-- === geometry helpers ===
 local function create(
 	name: string,
 	size: Vector3,
@@ -170,6 +173,7 @@ local function vcyl(
 	return builder(name, Vector3.new(height, diameter, diameter), upright(center), color, material, parent, Enum.PartType.Cylinder, nil, canCollide)
 end
 
+-- === decoration helpers ===
 local function write(board: BasePart, text: string)
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = "SignGui"
@@ -196,6 +200,7 @@ local function glow(host: BasePart, color: Color3, range: number)
 	light.Parent = host
 end
 
+-- === lighting ===
 local function applyLighting()
 	Lighting.ClockTime = 14.2
 	Lighting.Brightness = 3.2
@@ -290,6 +295,7 @@ local function applyLighting()
 	end
 end
 
+-- === land ===
 local function slab(name: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material, parent: Instance, decorated: boolean?)
 	local builder = if decorated then decor else part
 	builder(name, size, cf, color, material, parent, Enum.PartType.Block)
@@ -308,6 +314,7 @@ local function wedge(name: string, size: Vector3, cf: CFrame, color: Color3, mat
 	builder(name, size, cf, color, material, parent, Enum.PartType.Wedge)
 end
 
+-- === land ===
 local function buildMounds(parent: Instance)
 	local mounds = {
 		{ "MoundWest", -64, 44, 5.2, 12 },
@@ -340,6 +347,7 @@ local function buildMounds(parent: Instance)
 	end
 end
 
+-- === land ===
 local function buildHeadland(parent: Instance)
 	local rocks = {
 		{ "OutcropBase", Vector3.new(16, 4.0, 13), 138, -48, 2.6, 8 },
@@ -373,6 +381,7 @@ local function buildHeadland(parent: Instance)
 	end
 end
 
+-- === coast ===
 local function buildSea(parent: Instance)
 	part("Seabed", Vector3.new(980, 6, 980), CFrame.new(0, SEABED_Y - 3, 40), SEABED, Enum.Material.Sand, parent)
 	part("Sandbar", Vector3.new(520, 1.2, 360), CFrame.new(0, SEABED_Y + 0.4, 30), SHALLOW, Enum.Material.Sand, parent)
@@ -381,6 +390,7 @@ local function buildSea(parent: Instance)
 	sea.CanCollide = false
 end
 
+-- === coast ===
 local function buildLand(parent: Instance): (BasePart, BasePart)
 	-- organic sand ring: overlapping rotated slabs, y rises from the water inland
 	local sandRing = {
@@ -483,10 +493,12 @@ end
 local PATH = Color3.fromRGB(214, 186, 132)
 local PATH_EDGE = Color3.fromRGB(186, 156, 104)
 
+-- === paths ===
 local function pathSlab(name: string, size: Vector3, x: number, z: number, yaw: number, parent: Instance)
 	part(name, size, CFrame.new(x, GRASS_Y - 0.05, z) * CFrame.Angles(0, math.rad(yaw), 0), PATH, Enum.Material.Sand, parent)
 end
 
+-- === paths ===
 local function pebble(at: Vector3, parent: Instance, scale: number)
 	decor("Pebble", Vector3.new(0.7, 0.35, 0.55) * scale, CFrame.new(at + Vector3.new(0, 0.12, 0)), STONE, Enum.Material.Slate, parent, Enum.PartType.Ball, nil, false)
 end
@@ -495,6 +507,7 @@ local function shellEdge(at: Vector3, parent: Instance, color: Color3)
 	decor("PathShell", Vector3.new(0.55, 0.28, 0.7), CFrame.new(at + Vector3.new(0, 0.1, 0)), color, Enum.Material.SmoothPlastic, parent, Enum.PartType.Ball, nil, false)
 end
 
+-- === paths ===
 local function buildPaths(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "Paths"
@@ -552,6 +565,7 @@ local function buildPaths(parent: Instance)
 	end
 end
 
+-- === struct ===
 local function buildPier(originX: number, spawnName: string, parent: Instance): BasePart
 	local model = Instance.new("Model")
 	model.Name = spawnName
@@ -607,6 +621,7 @@ local function buildPier(originX: number, spawnName: string, parent: Instance): 
 	return part(spawnName, Vector3.new(4, 0.15, 4), CFrame.new(originX, WALK_Y + 0.05, PIER_Z - 16), PLANKS, Enum.Material.Wood, model, nil, 1, false)
 end
 
+-- === struct ===
 local function buildSign(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "WelcomeSign"
@@ -638,6 +653,7 @@ local function buildSign(parent: Instance)
 end
 
 
+-- === bases ===
 local function buildPedestal(world: Vector3, parent: Instance, index: number): BasePart
 	local model = Instance.new("Model")
 	model.Name = "Pedestal" .. tostring(index)
@@ -650,6 +666,7 @@ local function buildPedestal(world: Vector3, parent: Instance, index: number): B
 	return top
 end
 
+-- === bases ===
 local function buildFence(centre: Vector3, facing: Vector3, parent: Instance)
 	local right = Vector3.new(-facing.Z, 0, facing.X)
 	local half = PLOT / 2
@@ -704,6 +721,7 @@ local function buildFence(centre: Vector3, facing: Vector3, parent: Instance)
 	edge(c4, c1, false)
 end
 
+-- === bases ===
 local function buildBase(index: number, centre: Vector3, facing: Vector3, parent: Instance): (BasePart, { BasePart }, Vector3)
 	local model = Instance.new("Model")
 	model.Name = "Base" .. tostring(index)
@@ -748,6 +766,7 @@ local function buildBase(index: number, centre: Vector3, facing: Vector3, parent
 end
 
 
+-- === vegetation ===
 local function buildPalm(ground: Vector3, lean: Vector3, parent: Instance, scale: number)
 	local model = Instance.new("Model")
 	model.Name = "Palm"
@@ -840,6 +859,7 @@ local function buildLog(ground: Vector3, yaw: number, parent: Instance)
 end
 
 
+-- === props ===
 local function crate(at: Vector3, yaw: number, parent: Instance, size: number?)
 	local s = size or 2.2
 	decor("Crate", Vector3.new(s, s, s), CFrame.new(at + Vector3.new(0, s / 2, 0)) * CFrame.Angles(0, yaw, 0), WOOD, Enum.Material.WoodPlanks, parent)
@@ -883,6 +903,7 @@ local function beachedBoat(at: Vector3, yaw: number, parent: Instance)
 	cyl("Oar2", oarC, oarD, 0.18, WOOD_LIGHT, Enum.Material.Wood, parent, true, false)
 end
 
+-- === props ===
 local function buildFishingCorner(origin: Vector3, yaw: number, parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "FishingCorner"
@@ -901,6 +922,7 @@ local function buildFishingCorner(origin: Vector3, yaw: number, parent: Instance
 	beachedBoat(w(Vector3.new(3.4, 0, -2.4)), yaw - 0.5, model)
 end
 
+-- === props ===
 local function buildFruitStall(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "FruitStall"
@@ -948,6 +970,7 @@ local function towel(at: Vector3, yaw: number, color: Color3, parent: Instance)
 	decor("TowelStripe", Vector3.new(3.2, 0.12, 0.55), CFrame.new(at + Vector3.new(0, 0.08, 0.6)) * CFrame.Angles(0, yaw, 0), WHITE, Enum.Material.Fabric, parent, nil, nil, false)
 end
 
+-- === beach life ===
 local function buildBeachClub(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "BeachClub"
@@ -978,6 +1001,7 @@ local function buildBeachClub(parent: Instance)
 	vcyl("HutPost2", hut + Vector3.new(2.4, 1.8, -1.9), 3.6, 0.32, WOOD_DARK, Enum.Material.Wood, model, true)
 end
 
+-- === beach life ===
 local function tidePool(at: Vector3, parent: Instance)
 	decor("PoolRim", Vector3.new(4.2, 0.5, 3.4), CFrame.new(at + Vector3.new(0, 0.15, 0)), ROCK, Enum.Material.Slate, parent, Enum.PartType.Cylinder)
 	decor("PoolWater", Vector3.new(3.2, 0.25, 2.5), CFrame.new(at + Vector3.new(0, 0.28, 0)), SEA, Enum.Material.Glass, parent, Enum.PartType.Cylinder, 0.35, false)
@@ -992,6 +1016,7 @@ local function starfishBig(ground: Vector3, parent: Instance)
 	decor("StarHeart", Vector3.new(0.7, 0.2, 0.7), CFrame.new(ground + Vector3.new(0, 0.12, 0)), ORANGE, Enum.Material.SmoothPlastic, parent, Enum.PartType.Ball, nil, false)
 end
 
+-- === beach life ===
 local function buildTidePools(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "TidePools"
@@ -1021,6 +1046,7 @@ local function buildTidePools(parent: Instance)
 	decor("BigShell3", Vector3.new(0.8, 0.4, 1.05), CFrame.new(origin + Vector3.new(7.2, 0.2, 4)), SAND_DARK, Enum.Material.SmoothPlastic, model, Enum.PartType.Ball, nil, false)
 end
 
+-- === landmarks ===
 local function buildJungle(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "JungleCorner"
@@ -1093,6 +1119,7 @@ local function buildShrine(parent: Instance)
 	decor("Offer", Vector3.new(0.55, 0.55, 0.55), CFrame.new(at + Vector3.new(0, 2.7, 0.2)), FLOWER_RED, Enum.Material.SmoothPlastic, model, Enum.PartType.Ball, nil, false)
 end
 
+-- === harbour ===
 local function dinghy(at: Vector3, yaw: number, parent: Instance)
 	local cf = CFrame.new(at) * CFrame.Angles(0, yaw, math.rad(3))
 	decor("DinghyHull", Vector3.new(2.2, 0.9, 5.2), cf, WOOD_LIGHT, Enum.Material.Wood, parent)
@@ -1103,6 +1130,7 @@ local function dinghy(at: Vector3, yaw: number, parent: Instance)
 	cyl("Mooring", cleat, Vector3.new(cleat.X, SHORE_Y - 0.4, cleat.Z + 1.5), 0.14, ROPE, Enum.Material.Fabric, parent, true, false)
 end
 
+-- === harbour ===
 local function buildBoatDock(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "BoatDock"
@@ -1142,6 +1170,7 @@ local function buildLanternPost(ground: Vector3, parent: Instance)
 	glow(lamp, LAMP, 18)
 end
 
+-- === scatter ===
 local function scatterGreens(parent: Instance)
 	local spots = {
 		{ Vector3.new(-30, GRASS_Y, 48), 1.0, Vector3.new(-0.6, 0, 0.4) },
@@ -1172,6 +1201,7 @@ local function scatterGreens(parent: Instance)
 	buildRock(Vector3.new(100, SHORE_Y, -50), 1.7, parent, ROCK)
 end
 
+-- === market and grove ===
 local function stall(at: Vector3, yaw: number, color: Color3, parent: Instance)
 	local cf = CFrame.new(at) * CFrame.Angles(0, yaw, 0)
 	decor("StallCounter", Vector3.new(4.4, 2.0, 2.2), cf * CFrame.new(0, 1.0, 0), WOOD, Enum.Material.Wood, parent)
@@ -1200,6 +1230,7 @@ local function buildMarketLane(parent: Instance)
 	end
 end
 
+-- === market and grove ===
 local function campfire(at: Vector3, parent: Instance)
 	decor("FireRing", Vector3.new(3.4, 0.5, 3.4), CFrame.new(at + Vector3.new(0, 0.2, 0)), ROCK, Enum.Material.Slate, parent, Enum.PartType.Cylinder)
 	local flame = decor("Flame", Vector3.new(1.1, 1.6, 1.1), CFrame.new(at + Vector3.new(0, 1.0, 0)), ORANGE, Enum.Material.Neon, parent, Enum.PartType.Ball, nil, false)
@@ -1211,6 +1242,7 @@ local function campfire(at: Vector3, parent: Instance)
 	end
 end
 
+-- === market and grove ===
 local function buildPalmGrove(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "PalmGrove"
@@ -1230,6 +1262,7 @@ local function buildPalmGrove(parent: Instance)
 	campfire(origin, model)
 end
 
+-- === water and coast ===
 local function lily(at: Vector3, parent: Instance)
 	decor("Lily", Vector3.new(1.6, 0.12, 1.6), CFrame.new(at + Vector3.new(0, 0.1, 0)), LEAF, Enum.Material.Grass, parent, Enum.PartType.Cylinder, nil, false)
 	decor("LilyBloom", Vector3.new(0.6, 0.3, 0.6), CFrame.new(at + Vector3.new(0, 0.28, 0)), PINK, Enum.Material.SmoothPlastic, parent, Enum.PartType.Ball, nil, false)
@@ -1256,6 +1289,7 @@ local function buildPond(parent: Instance)
 	vcyl("BridgePile", deck + Vector3.new(1.2, -0.5, 3), 1.6, 0.4, WOOD_DARK, Enum.Material.Wood, model, true)
 end
 
+-- === water and coast ===
 local function flowerBed(at: Vector3, yaw: number, color: Color3, parent: Instance)
 	local cf = CFrame.new(at) * CFrame.Angles(0, yaw, 0)
 	decor("BedSoil", Vector3.new(6, 0.4, 2.2), cf * CFrame.new(0, 0.15, 0), SAND_DARK, Enum.Material.Ground, parent)
@@ -1280,6 +1314,7 @@ local function buildFlowerBeds(parent: Instance)
 	end
 end
 
+-- === water and coast ===
 local function foam(at: Vector3, yaw: number, parent: Instance)
 	decor("Foam", Vector3.new(7, 0.16, 1.4), CFrame.new(at) * CFrame.Angles(0, yaw, 0), WHITE, Enum.Material.SmoothPlastic, parent, nil, 0.15, false)
 end
@@ -1356,12 +1391,14 @@ local function buildCoast(parent: Instance)
 	coralHead(Vector3.new(-60, -0.5, 164), FLOWER_RED, model)
 end
 
+-- === plaza ===
 local function planter(at: Vector3, parent: Instance)
 	vcyl("Planter", at + Vector3.new(0, 0.7, 0), 1.4, 2.6, STONE, Enum.Material.Slate, parent, true)
 	vcyl("Soil", at + Vector3.new(0, 1.35, 0), 0.3, 2.2, SAND_DARK, Enum.Material.Ground, parent, true, false)
 	buildPalm(at, Vector3.new(0.2, 0, 0.2), parent, 0.55)
 end
 
+-- === plaza ===
 local function buildPlazaDress(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "PlazaDress"
@@ -1392,6 +1429,7 @@ local function buildPlazaDress(parent: Instance)
 	decor("Flag", Vector3.new(2.4, 1.4, 0.12), CFrame.new(1.4, 13.6, z), RED, Enum.Material.Fabric, model, nil, nil, false)
 end
 
+-- === composition ===
 local function buildScenery(parent: Instance, peaks: { Vector3 })
 	buildFishingCorner(Vector3.new(-34, BEACH_Y, -6), 0.4, parent)
 	buildFishingCorner(Vector3.new(34, BEACH_Y, -4), -0.35, parent)
@@ -1454,6 +1492,7 @@ local function buildScenery(parent: Instance, peaks: { Vector3 })
 	buildPlazaDress(parent)
 end
 
+-- === composition ===
 local function build(): Anchors
 	applyLighting()
 

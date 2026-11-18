@@ -1,3 +1,5 @@
+-- PlayerState: owns the authoritative per-player state record: cash, rebirths, slots, carrying, and (de)serialization.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local Config = require(script.Parent:WaitForChild("Config"))
@@ -23,6 +25,7 @@ local byPlayer: { [any]: State } = {}
 
 local PlayerState = {}
 
+-- === state lifecycle ===
 local function blankSlots(): { Slot? }
 	local slots: { Slot? } = {}
 	for i = 1, Config.slotCount do
@@ -87,6 +90,7 @@ function PlayerState.get(player: any): State?
 	return byPlayer[player]
 end
 
+-- === cash ===
 function PlayerState.addCash(player: any, amount: number): number
 	local state = byPlayer[player]
 	if not state then
@@ -109,6 +113,7 @@ function PlayerState.spendCash(player: any, amount: number): boolean
 	return true
 end
 
+-- === base and slots ===
 function PlayerState.setBase(player: any, index: number?)
 	local state = byPlayer[player]
 	if state then
@@ -140,6 +145,7 @@ function PlayerState.clearSlots(player: any)
 	end
 end
 
+-- === derived values ===
 function PlayerState.incomeMultiplier(player: any): number
 	local state = byPlayer[player]
 	if not state then
@@ -163,6 +169,7 @@ function PlayerState.placedIncome(player: any): number
 	return sum
 end
 
+-- === serialization ===
 function PlayerState.serialize(player: any): { [string]: any }?
 	local state = byPlayer[player]
 	if not state then

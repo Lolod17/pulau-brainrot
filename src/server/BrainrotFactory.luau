@@ -1,3 +1,5 @@
+-- BrainrotFactory: owns building brainrot models from recipes, their signs and auras, idle part animation, and head-carry/pickup magic.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local RunService = game:GetService("RunService")
@@ -75,6 +77,7 @@ local function scaleModel(model: Model, scale: number)
 	end
 end
 
+-- === display effects ===
 local function addAura(anchor: BasePart, entry: Entry)
 	local attachment = Instance.new("Attachment")
 	attachment.Name = "AuraAttachment"
@@ -188,6 +191,7 @@ local function formatIncome(amount: number): string
 	return grouped
 end
 
+-- === name sign ===
 local function makeLabel(name: string, text: string, textSize: number, color: Color3, order: number): TextLabel
 	local row = Instance.new("TextLabel")
 	row.Name = name
@@ -282,6 +286,7 @@ local function buildSign(model: Model, entry: Entry, minV: Vector3, maxV: Vector
 	return sign
 end
 
+-- === welding ===
 local function weldTo(root: BasePart, other: BasePart)
 	local weld = Instance.new("WeldConstraint")
 	weld.Part0 = root
@@ -321,6 +326,7 @@ type IdleRecord = {
 local idleRecords: { [Model]: IdleRecord } = {}
 local idleTicker: RBXScriptConnection? = nil
 
+-- === geometry measurement ===
 local function makeAnim(kind: string, parts: { BasePart }, speed: number, amp: number): Anim
 	local bases: { CFrame } = {}
 	for i, part in parts do
@@ -549,6 +555,7 @@ local function stepIdle(dt: number)
 	end
 end
 
+-- === idle animation ===
 local function startIdle()
 	if idleTicker then
 		return
@@ -556,6 +563,7 @@ local function startIdle()
 	idleTicker = RunService.Heartbeat:Connect(stepIdle)
 end
 
+-- === public api ===
 function Factory.animate(model: Model)
 	if idleRecords[model] then
 		return

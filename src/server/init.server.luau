@@ -1,3 +1,5 @@
+-- init.server: owns server bootstrap: remotes, wiring of every gameplay module, and the player join/leave/state-push loops.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local Players = game:GetService("Players")
@@ -22,6 +24,7 @@ local net = Instance.new("Folder")
 net.Name = "Net"
 net.Parent = ReplicatedStorage
 
+-- === remotes ===
 local function remote(name: string): RemoteEvent
 	local event = Instance.new("RemoteEvent")
 	event.Name = name
@@ -33,6 +36,7 @@ local stateEvent = remote("State")
 remote("Notify")
 local alertEvent = remote("Alert")
 
+-- === module setup ===
 local anchors = World
 Bases.init(anchors)
 Pedestal.init()
@@ -49,6 +53,7 @@ Rebirth.bind()
 
 local lastPushedCash: { [Player]: number } = {}
 
+-- === player lifecycle ===
 local function push(player: Player, previousCash: number?)
 	local payload = PlayerState.serialize(player)
 	if payload then
@@ -113,6 +118,7 @@ local function onLeave(player: Player)
 	lastPushedCash[player] = nil
 end
 
+-- === player lifecycle ===
 Players.PlayerAdded:Connect(function(player)
 	local ok, err = pcall(onPlayer, player)
 	if not ok then
@@ -137,6 +143,7 @@ Dock.start()
 Storm.start()
 Save.bind()
 
+-- === state push loop ===
 task.spawn(function()
 	while true do
 		task.wait(Config.statePushRate)

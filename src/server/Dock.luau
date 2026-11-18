@@ -1,3 +1,5 @@
+-- Dock: owns the pier spawn spots, timed restocking of docked brainrot, rare spawn announcements, and the take prompt.
+-- Server gameplay is authoritative; the client only renders and sends intents.
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -48,6 +50,7 @@ local alertRemote: RemoteEvent? = nil
 
 local Dock = {}
 
+-- === rare announcements ===
 local function alertEvent(): RemoteEvent?
 	if alertRemote then
 		return alertRemote
@@ -151,6 +154,7 @@ local function flourish(model: Model, entry: Cast.Entry)
 	announce(model, entry)
 end
 
+-- === dock spots ===
 local function makePrompt(host: BasePart): ProximityPrompt
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "TakePrompt"
@@ -163,6 +167,7 @@ local function makePrompt(host: BasePart): ProximityPrompt
 	return prompt
 end
 
+-- === dock spots ===
 local function layoutSpots(anchors: Anchors)
 	table.clear(spots)
 	for pierIndex, spawn in anchors.pierSpawns do
@@ -187,6 +192,7 @@ local function layoutSpots(anchors: Anchors)
 	end
 end
 
+-- === public api ===
 function Dock.standing(): number
 	local n = 0
 	for _, spot in spots do
