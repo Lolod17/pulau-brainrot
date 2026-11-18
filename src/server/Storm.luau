@@ -160,24 +160,23 @@ local function spawnShell(position: Vector3)
 		end
 		local slot = PlayerState.slotFromEntry(choice)
 		local model = Carry.attach(player, slot, nil)
-		if not model then
-			return
+		if model then
+			opened = true
+			if alertEvent then
+				alertEvent:FireClient(player, {
+					kind = "placed",
+					text = "You opened a shell: " .. tostring(choice.name),
+					tier = choice.rarity,
+					color = choice.aura,
+				})
+				alertEvent:FireAllClients({
+					kind = "shell-opened",
+					position = position,
+					tier = choice.rarity,
+				})
+			end
+			part:Destroy()
 		end
-		opened = true
-		if alertEvent then
-			alertEvent:FireClient(player, {
-				kind = "placed",
-				text = "You opened a shell: " .. tostring(choice.name),
-				tier = choice.rarity,
-				color = choice.aura,
-			})
-			alertEvent:FireAllClients({
-				kind = "shell-opened",
-				position = position,
-				tier = choice.rarity,
-			})
-		end
-		part:Destroy()
 	end)
 
 	task.delay(SHELL_LIFETIME, function()
