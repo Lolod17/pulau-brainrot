@@ -148,7 +148,7 @@ local function spawnShell(position: Vector3)
 
 	local opened = false
 	local connection = prompt.Triggered:Connect(function(player)
-		if opened then
+		if opened or part.Parent ~= folder then
 			return
 		end
 		local state = PlayerState.get(player)
@@ -183,6 +183,9 @@ local function spawnShell(position: Vector3)
 	task.delay(SHELL_LIFETIME, function()
 		if connection then
 			connection:Disconnect()
+		end
+		if prompt.Parent then
+			prompt:Destroy()
 		end
 		if part.Parent then
 			part:Destroy()
@@ -240,6 +243,17 @@ local function onPier(position: Vector3): boolean
 	return probe <= 48
 end
 
+local function underABase(instance: Instance): boolean
+	local current: Instance? = instance.Parent
+	while current do
+		if current:GetAttribute("BaseIndex") ~= nil then
+			return true
+		end
+		current = current.Parent
+	end
+	return false
+end
+
 local function sweep()
 	resolvePier()
 	local swept = 0
@@ -249,15 +263,21 @@ local function sweep()
 		if character and root and root:IsA("BasePart") then
 			local position = root.Position
 			local state = PlayerState.get(player)
+			local inside = inOwnBase(player, position)
 			local carrying = state ~= nil and state.carrying ~= nil
-			local outside = not inOwnBase(player, position)
+			local carried = if carrying then Carry.modelOf(player) else nil
+			local carriedInBase = inside and carried ~= nil and carried.Parent ~= nil and carried:IsDescendantOf(character)
+			local underBase = carried ~= nil and carried.Parent ~= nil and underABase(carried)
+			local outside = not inside
 			local onDock = onPier(position)
-			if onDock or (carrying and outside) then
+			if not carriedInBase and not underBase and (onDock or (carrying and outside)) then
 				local spot = position
 				pcall(function()
 					Carry.clear(player)
 				end)
-				character:Destroy()
+				if character.Parent ~= nil then
+					character:Destroy()
+				end
 				spawnShell(spot)
 				swept += 1
 				if alertEvent then

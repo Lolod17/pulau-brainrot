@@ -265,7 +265,16 @@ local function showSlot(visual: Visual, slot: Slot?)
 		refresh(visual)
 		return
 	end
-	local entry = Cast.getById(slot.id)
+	local record = Bases.getByIndex(visual.baseIndex)
+	local owner = record and record.owner
+	local ownerState = owner and PlayerState.get(owner)
+	local current = ownerState and ownerState.slots[visual.slotIndex]
+	if not current then
+		clearShowcase(visual)
+		refresh(visual)
+		return
+	end
+	local entry = Cast.getById(current.id)
 	if not entry then
 		clearShowcase(visual)
 		refresh(visual)
