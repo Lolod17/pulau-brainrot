@@ -4,6 +4,7 @@ local ProximityPromptService = game:GetService("ProximityPromptService")
 
 local Config = require(script.Parent:WaitForChild("Config"))
 local Bases = require(script.Parent:WaitForChild("Bases"))
+local Storm = require(script.Parent:WaitForChild("Storm"))
 
 local boards: { [number]: TextLabel } = {}
 local watching = false
@@ -117,6 +118,7 @@ function Lock.lock(player: Player, now: number?): boolean
 		end
 		label.Text = tostring(Config.lockDuration)
 	end
+	Storm.notify(player, "locked", "Base locked for " .. tostring(Config.lockDuration) .. "s", Color3.fromRGB(150, 220, 255))
 	return true
 end
 

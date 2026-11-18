@@ -14,6 +14,7 @@ local Lock = require(script:WaitForChild("Lock"))
 local Steal = require(script:WaitForChild("Steal"))
 local Rebirth = require(script:WaitForChild("Rebirth"))
 local Save = require(script:WaitForChild("Save"))
+local Storm = require(script:WaitForChild("Storm"))
 
 Players.CharacterAutoLoads = true
 
@@ -30,6 +31,7 @@ end
 
 local stateEvent = remote("State")
 remote("Notify")
+local alertEvent = remote("Alert")
 
 local anchors = World
 Bases.init(anchors)
@@ -38,15 +40,24 @@ Lock.init()
 Steal.init()
 Rebirth.init(anchors.rebirth)
 Dock.init(anchors, workspace)
+Storm.init(anchors)
 
 Pedestal.bind()
 Lock.bind()
 Steal.bind()
 Rebirth.bind()
 
-local function push(player: Player)
+local lastPushedCash: { [Player]: number } = {}
+
+local function push(player: Player, previousCash: number?)
 	local payload = PlayerState.serialize(player)
 	if payload then
+		payload.stormIn = Storm.secondsUntilNext()
+		local record = Bases.get(player)
+		if record and record.centre then
+			payload.basePosition = record.centre.Position
+		end
+		payload.gain = math.max(0, math.floor((payload.cash or 0) - (previousCash or 0)))
 		stateEvent:FireClient(player, payload)
 	end
 end
@@ -70,7 +81,10 @@ local function onPlayer(player: Player)
 	player:LoadCharacter()
 	Carry.restore(player)
 	Pedestal.sync(player)
+	local startState = PlayerState.get(player)
+	lastPushedCash[player] = if startState then startState.cash else nil
 	push(player)
+	Storm.notify(player, "join", "Welcome to Pulau Brainrot")
 end
 
 local function onLeave(player: Player)
@@ -96,6 +110,7 @@ local function onLeave(player: Player)
 		Bases.release(player)
 	end)
 	PlayerState.clear(player)
+	lastPushedCash[player] = nil
 end
 
 Players.PlayerAdded:Connect(function(player)
@@ -119,15 +134,30 @@ end
 Pedestal.start()
 Lock.start()
 Dock.start()
+Storm.start()
 Save.bind()
 
 task.spawn(function()
 	while true do
 		task.wait(Config.statePushRate)
 		for _, player in Players:GetPlayers() do
-			local ok, err = pcall(push, player)
+			local previous = lastPushedCash[player]
+			local ok, err = pcall(push, player, previous)
 			if not ok then
 				warn("[Server] state push failed: " .. tostring(err))
+			end
+			local record = Bases.get(player)
+			local state = PlayerState.get(player)
+			if state then
+				lastPushedCash[player] = state.cash
+			end
+			if record then
+				local left = math.max(0, record.lockedUntil - os.clock())
+				alertEvent:FireClient(player, {
+					kind = "lock",
+					locked = left > 0,
+					seconds = math.ceil(left),
+				})
 			end
 		end
 	end

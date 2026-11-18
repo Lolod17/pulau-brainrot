@@ -8,6 +8,7 @@ local Bases = require(script.Parent:WaitForChild("Bases"))
 local Carry = require(script.Parent:WaitForChild("Carry"))
 local Lock = require(script.Parent:WaitForChild("Lock"))
 local Pedestal = require(script.Parent:WaitForChild("Pedestal"))
+local Storm = require(script.Parent:WaitForChild("Storm"))
 
 local cooldownUntil: { [Player]: number } = {}
 
@@ -87,6 +88,8 @@ function Steal.try(thief: Player, baseIndex: number, slotIndex: number, now: num
 		visual.sellPrompt.ObjectText = "Empty"
 	end
 	cooldownUntil[thief] = (now or os.clock()) + Config.stealCooldown
+	Storm.notify(owner, "stolen", tostring(thief.Name) .. " stole " .. tostring(slot.name) .. " from your base!", Color3.fromRGB(255, 110, 110))
+	Storm.notify(thief, "stole", "You stole " .. tostring(slot.name) .. " from " .. tostring(owner.Name) .. "'s base!", Color3.fromRGB(255, 190, 90))
 	return true, "ok"
 end
 

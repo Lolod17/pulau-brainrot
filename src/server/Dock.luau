@@ -1,12 +1,30 @@
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
 
 local Config = require(script.Parent:WaitForChild("Config"))
 local Cast = require(script.Parent:WaitForChild("Cast"))
 local Factory = require(script.Parent:WaitForChild("BrainrotFactory"))
 local PlayerState = require(script.Parent:WaitForChild("PlayerState"))
 local Carry = require(script.Parent:WaitForChild("Carry"))
+
+local RARE_OR_BETTER: { [string]: boolean } = {
+	Epic = true,
+	Legendary = true,
+	Mythic = true,
+	["Ultra Rare"] = true,
+}
+
+local RARITY_COLOR: { [string]: Color3 } = {
+	Epic = Color3.fromRGB(186, 110, 255),
+	Legendary = Color3.fromRGB(255, 150, 48),
+	Mythic = Color3.fromRGB(230, 48, 48),
+	["Ultra Rare"] = Color3.fromRGB(255, 206, 64),
+}
+
+local GOLD = Color3.fromRGB(255, 206, 64)
 
 export type Anchors = {
 	pierSpawns: { BasePart },
@@ -26,8 +44,112 @@ type Spot = {
 local spots: { Spot } = {}
 local running = false
 local folder: Folder? = nil
+local alertRemote: RemoteEvent? = nil
 
 local Dock = {}
+
+local function alertEvent(): RemoteEvent?
+	if alertRemote then
+		return alertRemote
+	end
+	local net = ReplicatedStorage:FindFirstChild("Net")
+	if not net then
+		return nil
+	end
+	alertRemote = net:FindFirstChild("Alert") :: RemoteEvent?
+	if not alertRemote then
+		local event = Instance.new("RemoteEvent")
+		event.Name = "Alert"
+		event.Parent = net
+		alertRemote = event
+	end
+	return alertRemote
+end
+
+local function announce(model: Model, entry: Cast.Entry)
+	alertRemote = alertEvent()
+	local remote = alertRemote
+	if not remote then
+		return
+	end
+	local color = RARITY_COLOR[entry.rarity] or GOLD
+	local isUltra = entry.rarity == "Ultra Rare"
+	remote:FireAllClients({
+		kind = if isUltra then "rare-ultra" else "rare",
+		text = string.format("%s  -  %s", entry.name, entry.rarity),
+		color = color,
+		rarity = entry.rarity,
+		name = entry.name,
+		flash = isUltra,
+	})
+	if model.PrimaryPart then
+		remote:FireAllClients({
+			kind = "rare-burst",
+			position = model.PrimaryPart.Position,
+			color = color,
+			flash = isUltra,
+		})
+	end
+end
+
+local function flourish(model: Model, entry: Cast.Entry)
+	alertEvent()
+	local color = RARITY_COLOR[entry.rarity] or GOLD
+	local root = model.PrimaryPart
+	if not root then
+		announce(model, entry)
+		return
+	end
+
+	local anchorPart = Instance.new("Part")
+	anchorPart.Name = "RareFlourish"
+	anchorPart.Size = Vector3.new(0.4, 0.4, 0.4)
+	anchorPart.Transparency = 1
+	anchorPart.Anchored = true
+	anchorPart.CanCollide = false
+	anchorPart.CanQuery = false
+	anchorPart.CanTouch = false
+	anchorPart.CFrame = CFrame.new(root.Position + Vector3.new(0, 1, 0))
+	anchorPart.Parent = folder or workspace
+
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = "RareRise"
+	emitter.Color = ColorSequence.new(color)
+	emitter.LightEmission = 1
+	emitter.LightInfluence = 0
+	emitter.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1.1),
+		NumberSequenceKeypoint.new(1, 0.1),
+	})
+	emitter.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.1),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	emitter.Lifetime = NumberRange.new(0.9, 1.4)
+	emitter.Speed = NumberRange.new(14, 24)
+	emitter.SpreadAngle = Vector2.new(6, 6)
+	emitter.EmissionDirection = Enum.NormalId.Top
+	emitter.Rate = 0
+	emitter.Parent = anchorPart
+	emitter:Emit(70)
+
+	local light = Instance.new("PointLight")
+	light.Name = "RareFlash"
+	light.Color = color
+	light.Brightness = 6
+	light.Range = 22
+	light.Parent = anchorPart
+
+	Debris:AddItem(anchorPart, 1.8)
+	task.delay(0.25, function()
+		if light.Parent then
+			local tween = game:GetService("TweenService"):Create(light, TweenInfo.new(1.4), { Brightness = 0 })
+			tween:Play()
+		end
+	end)
+
+	announce(model, entry)
+end
 
 local function makePrompt(host: BasePart): ProximityPrompt
 	local prompt = Instance.new("ProximityPrompt")
@@ -106,6 +228,9 @@ function Dock.spawnOne(rng: Random?): Model?
 		makePrompt(root)
 	end
 	spot.model = model
+	if RARE_OR_BETTER[entry.rarity] then
+		flourish(model, entry)
+	end
 	return model
 end
 

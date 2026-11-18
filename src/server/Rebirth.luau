@@ -7,6 +7,7 @@ local PlayerState = require(script.Parent:WaitForChild("PlayerState"))
 local Bases = require(script.Parent:WaitForChild("Bases"))
 local Pedestal = require(script.Parent:WaitForChild("Pedestal"))
 local Carry = require(script.Parent:WaitForChild("Carry"))
+local Storm = require(script.Parent:WaitForChild("Storm"))
 
 local Rebirth = {}
 
@@ -44,6 +45,7 @@ function Rebirth.try(player: Player): boolean
 	end
 	state.rebirths += 1
 	state.cash = Config.cashAfterRebirth
+	Storm.notify(player, "rebirth", "Rebirth complete! Now x" .. string.format("%.1f", Rebirth.multiplier(state.rebirths)) .. " income", Color3.fromRGB(255, 210, 120))
 	return true
 end
 

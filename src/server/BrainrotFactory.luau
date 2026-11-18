@@ -1,5 +1,7 @@
 --!strict
 
+local RunService = game:GetService("RunService")
+
 local Cast = require(script.Parent:WaitForChild("Cast"))
 
 type Entry = Cast.Entry
@@ -297,6 +299,287 @@ end
 
 local Factory = {}
 
+local IDLE_BUDGET = 200
+local idleList: { Model } = {}
+
+type Anim = {
+	parts: { BasePart },
+	bases: { CFrame },
+	kind: string,
+	speed: number,
+	amp: number,
+	ring: BasePart?,
+	ringBase: CFrame?,
+	spin: number,
+}
+
+type IdleRecord = {
+	anim: Anim,
+	model: Model,
+}
+
+local idleRecords: { [Model]: IdleRecord } = {}
+local idleTicker: RBXScriptConnection? = nil
+
+local function makeAnim(kind: string, parts: { BasePart }, speed: number, amp: number): Anim
+	local bases: { CFrame } = {}
+	for i, part in parts do
+		bases[i] = part.CFrame
+	end
+	return {
+		parts = parts,
+		bases = bases,
+		kind = kind,
+		speed = speed,
+		amp = amp,
+		ring = nil,
+		ringBase = nil,
+		spin = 0,
+	}
+end
+
+local function collect(model: Model, names: { string }): { BasePart }
+	local found: { BasePart } = {}
+	for _, name in names do
+		local part = model:FindFirstChild(name, true)
+		if part and part:IsA("BasePart") then
+			table.insert(found, part)
+		end
+	end
+	return found
+end
+
+local function buildAnim(model: Model, id: string): Anim?
+	if id == "ikan_terbang" then
+		return makeAnim("fish", collect(model, { "Body", "WingL", "WingR", "WingTipL", "WingTipR" }), 2.2, 1)
+	elseif id == "kepiting_disco" then
+		local anim = makeAnim("crab", collect(model, { "Body", "ClawL", "ClawR", "PincerLUp", "PincerLLo", "PincerRUp", "PincerRLo" }), 1.6, 1)
+		local disco = model:FindFirstChild("DiscoBall")
+		if disco and disco:IsA("BasePart") then
+			anim.ring = disco
+			anim.ringBase = disco.CFrame
+			anim.spin = 2.4
+		end
+		return anim
+	elseif id == "penyu_turbo" then
+		return makeAnim("turtle", collect(model, { "Body", "FlipperFL", "FlipperFR", "FlipperBL", "FlipperBR" }), 0.9, 1)
+	elseif id == "gurita_dj" then
+		return makeAnim("octopus", collect(model, { "Body", "Tentacle1", "Tentacle2", "Tentacle3", "Tentacle4", "Tentacle5", "Tentacle6" }), 1.4, 1)
+	elseif id == "hiu_bajak_laut" then
+		return makeAnim("shark", collect(model, { "Body", "TailTop", "TailBot", "PecL", "PecR" }), 1.8, 1)
+	elseif id == "paus_api" then
+		return makeAnim("whale", collect(model, { "Body", "FinL", "FinR", "FlukeL", "FlukeR" }), 0.8, 1)
+	elseif id == "kraken_emas" then
+		local anim = makeAnim(
+			"kraken",
+			collect(model, {
+				"Body",
+				"Arm1a", "Arm1b", "Arm2a", "Arm2b", "Arm3a", "Arm3b",
+				"Arm4a", "Arm4b", "Arm5a", "Arm5b", "Arm6a", "Arm6b",
+			}),
+			1.1,
+			1
+		)
+		local crown = model:FindFirstChild("CrownBand")
+		if crown and crown:IsA("BasePart") then
+			anim.ring = crown
+			anim.ringBase = crown.CFrame
+			anim.spin = 1.2
+		end
+		return anim
+	end
+	return nil
+end
+
+local spinAccum: { [Anim]: number } = {}
+
+local function tickSpin(anim: Anim, dt: number): number
+	local now = (spinAccum[anim] or 0) + dt * anim.spin
+	spinAccum[anim] = now
+	return now
+end
+
+local function tickAnim(anim: Anim, t: number, dt: number)
+	local k = anim.kind
+	local parts = anim.parts
+	local bases = anim.bases
+	local amp = anim.amp
+	local s = t * anim.speed
+	if k == "fish" then
+		local flap = math.sin(s * 2) * 0.32
+		local tilt = math.sin(s * 0.7) * 0.14
+		for i = 1, #parts do
+			local base = bases[i]
+			local wobble = flap * amp
+			if i == 1 then
+				parts[i].CFrame = base * CFrame.Angles(0, 0, tilt)
+			else
+				parts[i].CFrame = base * CFrame.Angles(wobble * (if i <= 3 then 1 else 1.4), 0, 0) * CFrame.new(0, 0, math.sin(s * 0.7) * 0.02)
+			end
+		end
+	elseif k == "crab" then
+		local open = (math.sin(s * 1.5) + 1) * 0.5
+		local bob = math.sin(s * 0.6) * 0.06
+		for i = 1, #parts do
+			local base = bases[i]
+			if i == 1 then
+				parts[i].CFrame = base * CFrame.new(0, bob, 0)
+			elseif i == 2 or i == 3 then
+				parts[i].CFrame = base * CFrame.Angles(math.rad(open * 10), 0, math.rad(open * (if i == 2 then 12 else -12)))
+			else
+				local sign = if string.find(parts[i].Name, "R", 1, true) then -1 else 1
+				local vert = if string.find(parts[i].Name, "Up", 1, true) then 1 else -1
+				parts[i].CFrame = base * CFrame.Angles(math.rad(vert * open * 18 * sign), 0, 0)
+			end
+		end
+	elseif k == "turtle" then
+		local stroke = math.sin(s) * 0.35
+		local sway = math.sin(s * 0.4) * 0.05
+		for i = 1, #parts do
+			local base = bases[i]
+			if i == 1 then
+				parts[i].CFrame = base * CFrame.Angles(0, sway, 0)
+			else
+				local side = if string.find(parts[i].Name, "R", 1, true) then -1 else 1
+				local vert = if string.find(parts[i].Name, "F", 1, true) then 1 else 0.7
+				parts[i].CFrame = base * CFrame.Angles(math.rad(math.sin(s + vert) * 14 * amp), 0, math.rad(stroke * side * 10 * vert))
+			end
+		end
+	elseif k == "octopus" then
+		local pulse = math.sin(s * 1.2) * 0.08
+		for i = 1, #parts do
+			local base = bases[i]
+			if i == 1 then
+				parts[i].CFrame = base * CFrame.new(0, pulse, 0)
+			else
+				local wave = math.sin(s * 1.6 + (i - 2) * 0.9) * 0.32
+				local side = if (i % 2) == 0 then 1 else -1
+				parts[i].CFrame = base * CFrame.Angles(wave * amp, 0, side * wave * 0.5)
+			end
+		end
+	elseif k == "shark" then
+		local sway = math.sin(s) * 0.22
+		for i = 1, #parts do
+			local base = bases[i]
+			if i == 1 then
+				parts[i].CFrame = base * CFrame.Angles(0, sway * 0.4, 0)
+			elseif i <= 3 then
+				parts[i].CFrame = base * CFrame.Angles(0, sway * amp, 0)
+			else
+				parts[i].CFrame = base * CFrame.Angles(math.sin(s + 0.5) * 0.12, sway * 0.5, 0)
+			end
+		end
+	elseif k == "whale" then
+		local bob = math.sin(s) * 0.18
+		local fan = math.sin(s * 0.8) * 0.22
+		for i = 1, #parts do
+			local base = bases[i]
+			if i == 1 then
+				parts[i].CFrame = base * CFrame.new(0, bob, 0) * CFrame.Angles(math.rad(bob * 6), 0, 0)
+			elseif i <= 3 then
+				parts[i].CFrame = base * CFrame.Angles(0, 0, fan * amp * (if i == 2 then 1 else -1))
+			else
+				parts[i].CFrame = base * CFrame.Angles(math.rad(math.sin(s * 0.9) * 10), 0, 0)
+			end
+		end
+	elseif k == "kraken" then
+		local bob = math.sin(s * 0.5) * 0.1
+		for i = 1, #parts do
+			local base = bases[i]
+			if i == 1 then
+				parts[i].CFrame = base * CFrame.new(0, bob, 0)
+			else
+				local seq = math.sin(s * 1.3 - (i - 2) * 0.55)
+				local curl = seq * 0.28 * amp
+				parts[i].CFrame = base * CFrame.Angles(curl, seq * 0.12, curl * 0.6) * CFrame.new(0, math.abs(seq) * 0.05, 0)
+			end
+		end
+	end
+	if anim.ring and anim.ringBase then
+		local angle = tickSpin(anim, dt)
+		anim.ring.CFrame = anim.ringBase * CFrame.Angles(0, angle, 0)
+	end
+end
+
+local spinAccum: { [Anim]: number } = {}
+local idleCursor = 1
+
+local function stepIdle(dt: number)
+	local budget = IDLE_BUDGET
+	local t = os.clock()
+	local visited = 0
+	local total = #idleList
+	if total == 0 then
+		return
+	end
+	if idleCursor > total then
+		idleCursor = 1
+	end
+	while visited < total and budget > 0 do
+		local index = idleCursor
+		local model = idleList[index]
+		local record = idleRecords[model]
+		visited += 1
+		if record and model.Parent then
+			tickAnim(record.anim, t, dt)
+			budget -= 1
+			idleCursor = index + 1
+			if idleCursor > #idleList then
+				idleCursor = 1
+			end
+		else
+			if record then
+				idleRecords[model] = nil
+			end
+			local last = #idleList
+			if index ~= last then
+				idleList[index] = idleList[last]
+			else
+				idleCursor = 1
+			end
+			idleList[last] = nil
+			if idleCursor > #idleList then
+				idleCursor = 1
+			end
+			total = #idleList
+			if total == 0 then
+				return
+			end
+		end
+	end
+end
+
+local function startIdle()
+	if idleTicker then
+		return
+	end
+	idleTicker = RunService.Heartbeat:Connect(stepIdle)
+end
+
+function Factory.animate(model: Model)
+	if idleRecords[model] then
+		return
+	end
+	local id = model:GetAttribute("BrainrotId")
+	if typeof(id) ~= "string" then
+		return
+	end
+	local anim = buildAnim(model, id)
+	if not anim then
+		return
+	end
+	idleRecords[model] = { anim = anim, model = model }
+	table.insert(idleList, model)
+	startIdle()
+end
+
+function Factory.freeze(model: Model)
+	if not idleRecords[model] then
+		return
+	end
+	idleRecords[model] = nil
+end
+
 function Factory.create(entry: Entry, position: Vector3): Model
 	local model = Instance.new("Model")
 	model.Name = entry.name
@@ -349,6 +632,8 @@ function Factory.create(entry: Entry, position: Vector3): Model
 	end)
 	setLocked(model, model:GetAttribute("Locked") == true)
 
+	Factory.animate(model)
+
 	return model
 end
 
@@ -356,6 +641,34 @@ function Factory.standOn(model: Model, surface: BasePart)
 	local minV = bodyAABB(model)
 	local surfaceTop = surface.Position.Y + surface.Size.Y / 2
 	model:PivotTo(model:GetPivot() + Vector3.new(0, surfaceTop - minV.Y, 0))
+end
+
+local function addCarryShadow(model: Model)
+	local anchor = model.PrimaryPart
+	if not anchor then
+		return
+	end
+	local old = model:FindFirstChild("CarryShadow")
+	if old then
+		old:Destroy()
+	end
+	local minV, maxV = bodyAABB(model)
+	local shadow = Instance.new("Part")
+	shadow.Name = "CarryShadow"
+	shadow.Shape = Enum.PartType.Cylinder
+	shadow.Size = Vector3.new(0.04, math.max(maxV.X - minV.X, 1) * 0.9, math.max(maxV.Z - minV.Z, 1) * 0.9)
+	shadow.Color = Color3.fromRGB(0, 0, 0)
+	shadow.Material = Enum.Material.SmoothPlastic
+	shadow.Transparency = 0.42
+	shadow.Anchored = false
+	shadow.CanCollide = false
+	shadow.CanQuery = false
+	shadow.CanTouch = false
+	shadow.Massless = true
+	shadow.CastShadow = false
+	shadow.CFrame = CFrame.new((minV.X + maxV.X) / 2, minV.Y - 0.02, (minV.Z + maxV.Z) / 2) * CFrame.Angles(0, 0, math.rad(90))
+	shadow.Parent = model
+	weldTo(anchor, shadow)
 end
 
 function Factory.weldAboveHead(model: Model, character: Model)
@@ -371,6 +684,13 @@ function Factory.weldAboveHead(model: Model, character: Model)
 	if old then
 		old:Destroy()
 	end
+	local characterHead = character:FindFirstChild("Head") :: BasePart?
+	if characterHead then
+		local oldMotor = characterHead:FindFirstChild("CarryWeld")
+		if oldMotor then
+			oldMotor:Destroy()
+		end
+	end
 	for _, descendant in model:GetDescendants() do
 		if descendant:IsA("BasePart") then
 			descendant.Anchored = false
@@ -378,21 +698,41 @@ function Factory.weldAboveHead(model: Model, character: Model)
 	end
 	local minV, maxV = bodyAABB(model)
 	local headTop = head.Position.Y + head.Size.Y / 2
-	local delta = Vector3.new(head.Position.X - (minV.X + maxV.X) / 2, (headTop + 0.4) - minV.Y, head.Position.Z - (minV.Z + maxV.Z) / 2)
+	local delta = Vector3.new(head.Position.X - (minV.X + maxV.X) / 2, (headTop + 2) - minV.Y, head.Position.Z - (minV.Z + maxV.Z) / 2)
 	model:PivotTo(model:GetPivot() + delta)
-	local weld = Instance.new("WeldConstraint")
-	weld.Name = "CarryWeld"
-	weld.Part0 = head
-	weld.Part1 = anchor
-	weld.Parent = anchor
+	local carryMotor = Instance.new("Motor6D")
+	carryMotor.Name = "CarryWeld"
+	carryMotor.Part0 = head
+	carryMotor.Part1 = anchor
+	carryMotor.C0 = CFrame.new(0, head.Size.Y / 2 + 2, 0) * CFrame.Angles(math.rad(8), 0, 0)
+	carryMotor.C1 = CFrame.identity
+	carryMotor.Parent = anchor
 	model.Parent = character
+	addCarryShadow(model)
+end
+
+local function stripCarry(model: Model, anchor: BasePart)
+	local carry = anchor:FindFirstChild("CarryWeld")
+	if carry then
+		carry:Destroy()
+	end
+	local head = anchor.Parent
+	if head and head:IsA("BasePart") then
+		local leftover = head:FindFirstChild("CarryWeld")
+		if leftover then
+			leftover:Destroy()
+		end
+	end
+	local shadow = model:FindFirstChild("CarryShadow")
+	if shadow then
+		shadow:Destroy()
+	end
 end
 
 function Factory.drop(model: Model)
 	local anchor = model.PrimaryPart
-	local carry = anchor and anchor:FindFirstChild("CarryWeld")
-	if carry then
-		carry:Destroy()
+	if anchor then
+		stripCarry(model, anchor)
 	end
 	for _, descendant in model:GetDescendants() do
 		if descendant:IsA("BasePart") then
@@ -406,6 +746,7 @@ function Factory.drop(model: Model)
 end
 
 function Factory.remove(model: Model)
+	Factory.freeze(model)
 	model:Destroy()
 end
 

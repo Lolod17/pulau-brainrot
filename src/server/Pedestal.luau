@@ -1,6 +1,7 @@
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
+local RunService = game:GetService("RunService")
 
 local Config = require(script.Parent:WaitForChild("Config"))
 local Cast = require(script.Parent:WaitForChild("Cast"))
@@ -18,12 +19,196 @@ type Visual = {
 	model: Model?,
 	placePrompt: ProximityPrompt,
 	sellPrompt: ProximityPrompt,
+	showcase: Model?,
 }
+
+local RARITY_TIER: { [string]: number } = {
+	Rare = 1,
+	Epic = 2,
+	Legendary = 3,
+	Mythic = 4,
+	["Ultra Rare"] = 5,
+}
+
+local RARITY_COLOR: { [string]: Color3 } = {
+	Rare = Color3.fromRGB(80, 140, 255),
+	Epic = Color3.fromRGB(186, 110, 255),
+	Legendary = Color3.fromRGB(255, 150, 48),
+	Mythic = Color3.fromRGB(230, 48, 48),
+	["Ultra Rare"] = Color3.fromRGB(255, 206, 64),
+}
+
+local GOLD = Color3.fromRGB(255, 206, 64)
+
+type Ring = {
+	part: BasePart,
+	spin: number,
+}
+
+local showcases: { Model } = {}
+local rings: { [Model]: { Ring } } = {}
+local showcaseTicker: RBXScriptConnection? = nil
+local showcaseClock = 0
 
 local visuals: { Visual } = {}
 local ticking = false
 
 local Pedestal = {}
+
+local function startShowcaseTicker()
+	if showcaseTicker then
+		return
+	end
+	showcaseTicker = RunService.Heartbeat:Connect(function(dt)
+		if #showcases == 0 then
+			return
+		end
+		showcaseClock += dt
+		for i = #showcases, 1, -1 do
+			local effect = showcases[i]
+			if not effect.Parent then
+				table.remove(showcases, i)
+				continue
+			end
+			local list = rings[effect]
+			if list then
+				for _, ring in list do
+					if ring.part.Parent then
+						local base = ring.part:GetAttribute("BasePosition")
+						if typeof(base) == "Vector3" then
+							ring.part.CFrame = CFrame.new(base) * CFrame.Angles(0, showcaseClock * ring.spin, 0)
+						end
+					end
+				end
+			end
+		end
+	end)
+end
+
+local function makeRing(effect: Model, top: BasePart, radius: number, height: number, color: Color3, spin: number)
+	local ring = Instance.new("Part")
+	ring.Name = "ShowcaseRing"
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Size = Vector3.new(0.12, radius * 2, radius * 2)
+	ring.Color = color
+	ring.Material = Enum.Material.Neon
+	ring.Transparency = 0.15
+	ring.Anchored = true
+	ring.CanCollide = false
+	ring.CanQuery = false
+	ring.CanTouch = false
+	ring.CastShadow = false
+	local base = top.Position + Vector3.new(0, height, 0)
+	ring.CFrame = CFrame.new(base) * CFrame.Angles(0, 0, math.rad(90))
+	ring:SetAttribute("BasePosition", base)
+	ring.Parent = effect
+	return { part = ring, spin = spin }
+end
+
+local EMITTER_BUDGET = 2
+
+local function makeEmitter(parent: BasePart, name: string, color: Color3, rate: number, rising: boolean): ParticleEmitter
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = name
+	emitter.Color = ColorSequence.new(color)
+	emitter.LightEmission = 1
+	emitter.LightInfluence = 0
+	emitter.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.4),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	emitter.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.2),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	emitter.Lifetime = NumberRange.new(0.8, 1.4)
+	emitter.Rate = rate
+	if rising then
+		emitter.Speed = NumberRange.new(2.5, 4.5)
+		emitter.SpreadAngle = Vector2.new(8, 8)
+		emitter.EmissionDirection = Enum.NormalId.Top
+	else
+		emitter.Speed = NumberRange.new(0.4, 1.2)
+		emitter.SpreadAngle = Vector2.new(30, 30)
+		emitter.EmissionDirection = Enum.NormalId.Top
+	end
+	emitter.Parent = parent
+	return emitter
+end
+
+local function clearShowcase(visual: Visual)
+	if not visual.showcase then
+		return
+	end
+	rings[visual.showcase] = nil
+	for i = #showcases, 1, -1 do
+		if showcases[i] == visual.showcase then
+			table.remove(showcases, i)
+		end
+	end
+	visual.showcase:Destroy()
+	visual.showcase = nil
+end
+
+local function buildShowcase(visual: Visual, entry: Cast.Entry)
+	clearShowcase(visual)
+	local tier = RARITY_TIER[entry.rarity]
+	if not tier then
+		return
+	end
+	local color = RARITY_COLOR[entry.rarity] or entry.aura
+	local effect = Instance.new("Model")
+	effect.Name = "Showcase"
+	effect.Parent = visual.top.Parent
+	visual.showcase = effect
+	local list: { Ring } = {}
+	table.insert(list, makeRing(effect, visual.top, 4.2, 0.4, color, 0.8))
+	if tier >= 2 then
+		table.insert(list, makeRing(effect, visual.top, 3.2, 0.9, color, -1.2))
+	end
+	rings[effect] = list
+
+	local anchor = Instance.new("Part")
+	anchor.Name = "ShowcaseAnchor"
+	anchor.Size = Vector3.new(0.2, 0.2, 0.2)
+	anchor.Transparency = 1
+	anchor.Anchored = true
+	anchor.CanCollide = false
+	anchor.CanQuery = false
+	anchor.CanTouch = false
+	anchor.CFrame = CFrame.new(visual.top.Position + Vector3.new(0, 1, 0))
+	anchor.Parent = effect
+
+	local emitterCount = 0
+	if tier >= 3 and emitterCount < EMITTER_BUDGET then
+		makeEmitter(anchor, "RisingMotes", color, 18, true)
+		emitterCount += 1
+	end
+	if tier >= 5 and emitterCount < EMITTER_BUDGET then
+		makeEmitter(anchor, "GoldSparkle", GOLD, 26, true)
+		emitterCount += 1
+	end
+
+	if tier >= 4 then
+		local shaft = Instance.new("Part")
+		shaft.Name = "LightShaft"
+		shaft.Shape = Enum.PartType.Cylinder
+		shaft.Size = Vector3.new(9, 2.2, 2.2)
+		shaft.Color = GOLD
+		shaft.Material = Enum.Material.Neon
+		shaft.Transparency = 0.72
+		shaft.Anchored = true
+		shaft.CanCollide = false
+		shaft.CanQuery = false
+		shaft.CanTouch = false
+		shaft.CastShadow = false
+		shaft.CFrame = CFrame.new(visual.top.Position + Vector3.new(0, 5.5, 0))
+		shaft.Parent = effect
+	end
+
+	table.insert(showcases, effect)
+	startShowcaseTicker()
+end
 
 local function promptOn(host: BasePart, name: string, action: string, objectText: string, hold: number): ProximityPrompt
 	local prompt = Instance.new("ProximityPrompt")
@@ -58,11 +243,13 @@ local function showSlot(visual: Visual, slot: Slot?)
 		visual.model = nil
 	end
 	if not slot then
+		clearShowcase(visual)
 		refresh(visual)
 		return
 	end
 	local entry = Cast.getById(slot.id)
 	if not entry then
+		clearShowcase(visual)
 		refresh(visual)
 		return
 	end
@@ -77,6 +264,7 @@ local function showSlot(visual: Visual, slot: Slot?)
 	model:SetAttribute("BaseIndex", visual.baseIndex)
 	model:SetAttribute("SlotIndex", visual.slotIndex)
 	visual.model = model
+	buildShowcase(visual, entry)
 	refresh(visual)
 end
 
@@ -91,6 +279,7 @@ function Pedestal.init()
 				model = nil,
 				placePrompt = promptOn(top, "PlacePrompt", "Place", "Pedestal", 0),
 				sellPrompt = promptOn(top, "SellPrompt", "Sell", "Empty", 0.4),
+				showcase = nil,
 			}
 			visual.sellPrompt.Enabled = false
 			table.insert(visuals, visual)
