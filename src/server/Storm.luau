@@ -150,31 +150,31 @@ local function spawnShell(position: Vector3)
 		if opened then
 			return
 		end
-		opened = true
-		local choice = chooseCharacter(position)
-		if choice then
-			pcall(function()
-				local state = PlayerState.get(player)
-				if state and not state.carrying then
-					PlayerState.setCarrying(player, PlayerState.slotFromEntry(choice))
-					Carry.attach(player, state.carrying :: any)
-				end
-			end)
-			if alertEvent then
-				alertEvent:FireClient(player, {
-					kind = "placed",
-					text = "You opened a shell: " .. tostring(choice.name),
-					tier = choice.rarity,
-					color = choice.aura,
-				})
-			end
+		local state = PlayerState.get(player)
+		if not state or state.carrying ~= nil then
+			return
 		end
-		local burst = alertEvent
-		if burst then
-			burst:FireAllClients({
+		local choice = chooseCharacter(position)
+		if not choice then
+			return
+		end
+		local slot = PlayerState.slotFromEntry(choice)
+		local model = Carry.attach(player, slot, nil)
+		if not model then
+			return
+		end
+		opened = true
+		if alertEvent then
+			alertEvent:FireClient(player, {
+				kind = "placed",
+				text = "You opened a shell: " .. tostring(choice.name),
+				tier = choice.rarity,
+				color = choice.aura,
+			})
+			alertEvent:FireAllClients({
 				kind = "shell-opened",
 				position = position,
-				tier = choice and choice.rarity or "Common",
+				tier = choice.rarity,
 			})
 		end
 		part:Destroy()
