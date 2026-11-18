@@ -4,7 +4,9 @@
 // src/, screenshots/ and PLAY.json from beside this file to /output and writes /output/dossier.json, the
 // summary the judge reads, with the vendored make.fun library.
 //
-// The check refuses, printing one line and exiting 1, when: PLAY.json does not parse or lacks the required
+// The check refuses, printing one line and exiting 1, when: MAKEFUN_OUTPUT_DIR resolves to this repository or any
+// path inside it (a dossier written into the entry would ship stray files, and copying src/ into itself recurses);
+// PLAY.json does not parse or lacks the required
 // fields; place_id or universe_id is not a positive whole number (they stay 0 until the place is published);
 // url is not exactly https://www.roblox.com/games/<place_id>; screenshots holds fewer than 3 or more than 4
 // files, or a file is not named .jpg/.jpeg/.png, or any file is 262144 bytes or more; or game.rbxl is missing
@@ -17,8 +19,8 @@
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-roblox.ts';
 
@@ -89,8 +91,29 @@ function checkScreenshots(): number {
   return names.length;
 }
 
+/** Resolves a path through symlinks, walking up to the nearest existing ancestor when the path does not exist yet. */
+function realish(path: string): string {
+  const absolute = resolve(path);
+  if (existsSync(absolute)) return realpathSync(absolute);
+  const parent = dirname(absolute);
+  if (parent === absolute) return absolute;
+  return join(realish(parent), basename(absolute));
+}
+
+/** Refuses an output directory that is this repository or lies inside it. */
+function checkOutput(): void {
+  const repo = realish(here);
+  const target = realish(out);
+  const rel = relative(repo, target);
+  const outside = rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel);
+  if (!outside) {
+    throw new HandInError(`MAKEFUN_OUTPUT_DIR (${out}) is inside the repository ${repo}; point it outside the entry`);
+  }
+}
+
 /** Runs every hand-in check; the first failure throws a HandInError naming the problem. */
 function checkHandIn(): void {
+  checkOutput();
   const placePath = join(here, 'game.rbxl');
   if (!existsSync(placePath)) throw new HandInError('game.rbxl is missing; run rojo build first');
   const placeBytes = statSync(placePath).size;

@@ -1,6 +1,10 @@
 -- Lock: owns base locking: fence solidity, the lock countdown board, and the lock prompt and ticker.
 -- Server gameplay is authoritative; the client only renders and sends intents.
 -- Public API: Lock.isLocked, Lock.baseLocked, Lock.remaining, Lock.lock, Lock.unlock, Lock.tick, Lock.init, Lock.bind, Lock.start, Lock.stop, Lock.canPass
+-- contract
+-- Owns: each base's lock window (Config.lockDuration, thirty seconds), fence collision while locked, and the countdown boards.
+-- Refuses: locking a base the player does not own or one already locked; refuses passage (theft) to anyone but the owner while locked.
+-- Never: blocks the owner (canPass always lets the owner through), extends a running lock, or locks a base on a non-owner's request.
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -15,6 +19,8 @@ local watching = false
 local Lock = {}
 
 -- === fence and board ===
+-- Collects the fence posts, rails and gate parts under a base model.
+-- Returns: a list of those BaseParts (empty if none).
 local function fenceParts(model: Instance): { BasePart }
 	local parts: { BasePart } = {}
 	for _, descendant in model:GetDescendants() do
@@ -28,6 +34,8 @@ local function fenceParts(model: Instance): { BasePart }
 	return parts
 end
 
+-- Makes a base's fence solid while locked, or restores the parts it had made solid.
+-- Returns: nothing.
 local function applySolid(record: any, solid: boolean)
 	local model = record.model
 	if not model then
@@ -46,6 +54,8 @@ local function applySolid(record: any, solid: boolean)
 	end
 end
 
+-- Finds or builds the hidden countdown billboard for a base.
+-- Returns: the countdown TextLabel, or nil when the base has no model.
 local function ensureBoard(record: any): TextLabel?
 	local existing = boards[record.index]
 	if existing and existing.Parent then
@@ -80,6 +90,8 @@ local function ensureBoard(record: any): TextLabel?
 end
 
 -- === public api ===
+-- Checks whether the player's own base is currently locked.
+-- Returns: true if locked, false if unlocked or the player has no base.
 function Lock.isLocked(player: Player, now: number?): boolean
 	local record = Bases.get(player)
 	if not record then
@@ -88,6 +100,8 @@ function Lock.isLocked(player: Player, now: number?): boolean
 	return Bases.isLocked(record, now)
 end
 
+-- Checks whether the base at the given index is currently locked.
+-- Returns: true if locked, false if not locked or the index is unknown.
 function Lock.baseLocked(baseIndex: number, now: number?): boolean
 	local record = Bases.getByIndex(baseIndex)
 	if not record then
@@ -96,6 +110,8 @@ function Lock.baseLocked(baseIndex: number, now: number?): boolean
 	return Bases.isLocked(record, now)
 end
 
+-- Works out how long the base at the given index stays locked.
+-- Returns: seconds left, never below zero (zero for an unknown index).
 function Lock.remaining(baseIndex: number, now: number?): number
 	local record = Bases.getByIndex(baseIndex)
 	if not record then
@@ -104,6 +120,8 @@ function Lock.remaining(baseIndex: number, now: number?): number
 	return math.max(0, record.lockedUntil - (now or os.clock()))
 end
 
+-- Locks the player's own base for Config.lockDuration, solidifies the fence and shows the countdown.
+-- Returns: true if the lock started, false if not the owner or already locked.
 function Lock.lock(player: Player, now: number?): boolean
 	local record = Bases.get(player)
 	if not record or record.owner ~= player then
@@ -127,6 +145,8 @@ function Lock.lock(player: Player, now: number?): boolean
 	return true
 end
 
+-- Clears the lock on the base at the given index, relaxes the fence and hides the countdown.
+-- Returns: nothing.
 function Lock.unlock(baseIndex: number)
 	local record = Bases.getByIndex(baseIndex)
 	if not record then
@@ -144,6 +164,8 @@ function Lock.unlock(baseIndex: number)
 	end
 end
 
+-- Updates every locked base's countdown and unlocks any whose time has run out.
+-- Returns: nothing.
 function Lock.tick(now: number?)
 	local clock = now or os.clock()
 	for _, record in Bases.records() do
@@ -161,6 +183,8 @@ function Lock.tick(now: number?)
 	end
 end
 
+-- Places a lock prompt and countdown board on every base that has a model.
+-- Returns: nothing.
 function Lock.init()
 	for _, record in Bases.records() do
 		local model = record.model
@@ -183,6 +207,8 @@ function Lock.init()
 	end
 end
 
+-- Connects lock prompts so a player can only lock from a prompt on their own base.
+-- Returns: nothing.
 function Lock.bind()
 	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
 		if prompt.Name ~= "LockPrompt" then
@@ -200,6 +226,8 @@ function Lock.bind()
 	end)
 end
 
+-- Starts the background loop that runs Lock.tick every quarter second (once only).
+-- Returns: nothing.
 function Lock.start()
 	if watching then
 		return
@@ -216,10 +244,14 @@ function Lock.start()
 	end)
 end
 
+-- Signals the background tick loop to stop after its current pass.
+-- Returns: nothing.
 function Lock.stop()
 	watching = false
 end
 
+-- Decides whether a player may pass into the base at the given index.
+-- Returns: true if unlocked, unknown, or the player is the owner; false for anyone else while locked.
 function Lock.canPass(player: Player, baseIndex: number): boolean
 	local record = Bases.getByIndex(baseIndex)
 	if not record then

@@ -1,6 +1,12 @@
 -- PlayerState: owns the authoritative per-player state record: cash, rebirths, slots, carrying, and (de)serialization.
 -- Server gameplay is authoritative; the client only renders and sends intents.
 -- Public API: PlayerState.create, PlayerState.get, PlayerState.addCash, PlayerState.spendCash, PlayerState.setBase, PlayerState.setCarrying, PlayerState.setSlot, PlayerState.clearSlots, PlayerState.incomeMultiplier, PlayerState.placedIncome, PlayerState.serialize, PlayerState.clear, PlayerState.slotFromEntry
+-- contract:
+--   Owns: one State per player keyed by player, with fields cash, rebirths, baseIndex, slots (Config.slotCount entries), carrying, userId.
+--   Validates: loaded cash/rebirths must be numbers (floored, clamped >= 0); loaded slot/carrying ids must resolve via Cast.getById;
+--   spendCash refuses negative cost or insufficient cash; setSlot ignores indexes outside 1..Config.slotCount; addCash clamps cash at 0.
+--   Returns: create -> State (existing one if present); spendCash -> boolean; addCash -> new cash (0 if no state);
+--   incomeMultiplier -> 1 + rebirthIncomeBonus * rebirths; serialize -> plain table (empty slots/carrying as false, baseIndex 0 if nil) or nil.
 --!strict
 
 local Config = require(script.Parent:WaitForChild("Config"))

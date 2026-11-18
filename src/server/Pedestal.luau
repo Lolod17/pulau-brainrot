@@ -1,6 +1,10 @@
 -- Pedestal: owns pedestal slots: placed models, rarity showcases, place/sell prompts, and passive income ticks.
 -- Server gameplay is authoritative; the client only renders and sends intents.
 -- Public API: Pedestal.init, Pedestal.visual, Pedestal.sync, Pedestal.clearBase, Pedestal.tryPlace, Pedestal.trySell, Pedestal.tickIncome, Pedestal.bind, Pedestal.start, Pedestal.stop
+-- contract
+-- Owns: pedestal visuals per base slot; placing moves the carried brainrot into an empty slot, selling pays price * Config.sellFraction.
+-- Refuses: place or sell unless the player owns the base (ownership is checked); place without a carry or onto a filled slot; sell of an empty slot.
+-- Never: pays income except via the tick (placed income * multiplier * Config.incomeTickRate every Config.incomeTickRate s), or shows a model the owner's state lacks.
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -59,6 +63,8 @@ local ticking = false
 local Pedestal = {}
 
 -- === showcase effect ===
+-- Connects one Heartbeat ticker that spins showcase rings and prunes destroyed showcases.
+-- Returns: nothing.
 local function startShowcaseTicker()
 	if showcaseTicker then
 		return
@@ -89,6 +95,8 @@ local function startShowcaseTicker()
 	end)
 end
 
+-- Builds a thin translucent ring part above a pedestal top inside the showcase model.
+-- Returns: a Ring record holding the part and its spin speed.
 local function makeRing(effect: Model, top: BasePart, radius: number, height: number, color: Color3, spin: number)
 	local ring = Instance.new("Part")
 	ring.Name = "ShowcaseRing"
@@ -111,6 +119,8 @@ end
 
 local EMITTER_BUDGET = 1
 
+-- Creates a coloured particle emitter on a part, rising or drifting.
+-- Returns: the new ParticleEmitter.
 local function makeEmitter(parent: BasePart, name: string, color: Color3, rate: number, rising: boolean): ParticleEmitter
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Name = name
@@ -140,6 +150,8 @@ local function makeEmitter(parent: BasePart, name: string, color: Color3, rate: 
 	return emitter
 end
 
+-- Destroys a pedestal's showcase and removes it from the ring and ticker lists.
+-- Returns: nothing.
 local function clearShowcase(visual: Visual)
 	if not visual.showcase then
 		return
@@ -155,6 +167,8 @@ local function clearShowcase(visual: Visual)
 end
 
 -- === showcase effect ===
+-- Rebuilds a pedestal's rarity showcase (rings, motes, gold shaft by tier); skips untiered rarities.
+-- Returns: nothing.
 local function buildShowcase(visual: Visual, entry: Cast.Entry)
 	clearShowcase(visual)
 	local tier = RARITY_TIER[entry.rarity]
@@ -216,6 +230,8 @@ local function buildShowcase(visual: Visual, entry: Cast.Entry)
 end
 
 -- === prompt helpers ===
+-- Creates a named proximity prompt on a pedestal top with the given text and hold time.
+-- Returns: the new ProximityPrompt.
 local function promptOn(host: BasePart, name: string, action: string, objectText: string, hold: number): ProximityPrompt
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = name
@@ -228,6 +244,8 @@ local function promptOn(host: BasePart, name: string, action: string, objectText
 	return prompt
 end
 
+-- Syncs a pedestal's prompts (and clears its model when empty) from the base owner's slot state.
+-- Returns: nothing.
 local function refresh(visual: Visual)
 	local record = Bases.getByIndex(visual.baseIndex)
 	local owner = record and record.owner
@@ -253,6 +271,8 @@ local function refresh(visual: Visual)
 end
 
 -- === slot visuals ===
+-- Rebuilds a pedestal's model and showcase from the owner's current slot, or clears it.
+-- Returns: nothing.
 local function showSlot(visual: Visual, slot: Slot?)
 	if visual.model then
 		if visual.model.Parent then
@@ -296,6 +316,8 @@ local function showSlot(visual: Visual, slot: Slot?)
 end
 
 -- === public api ===
+-- Builds a visual with place and sell prompts for every pedestal of every base.
+-- Returns: nothing.
 function Pedestal.init()
 	table.clear(visuals)
 	for _, record in Bases.records() do
@@ -315,6 +337,8 @@ function Pedestal.init()
 	end
 end
 
+-- Looks up the visual for a base index and slot index.
+-- Returns: that Visual, or nil if none matches.
 function Pedestal.visual(baseIndex: number, slotIndex: number): Visual?
 	for _, visual in visuals do
 		if visual.baseIndex == baseIndex and visual.slotIndex == slotIndex then
@@ -324,6 +348,8 @@ function Pedestal.visual(baseIndex: number, slotIndex: number): Visual?
 	return nil
 end
 
+-- Redraws every pedestal on the player's base from their saved slots.
+-- Returns: nothing.
 function Pedestal.sync(player: Player)
 	local state = PlayerState.get(player)
 	if not state or not state.baseIndex then
@@ -337,6 +363,8 @@ function Pedestal.sync(player: Player)
 	end
 end
 
+-- Empties every pedestal on a base and resets its prompts to the empty state.
+-- Returns: nothing.
 function Pedestal.clearBase(baseIndex: number)
 	for slotIndex = 1, Config.slotCount do
 		local visual = Pedestal.visual(baseIndex, slotIndex)
@@ -351,6 +379,8 @@ function Pedestal.clearBase(baseIndex: number)
 	end
 end
 
+-- Moves the owner's carried brainrot onto an empty pedestal slot and shows it.
+-- Returns: true if placed, false if not the owner, not carrying, or the slot is filled.
 local function place(player: Player, visual: Visual): boolean
 	local record = Bases.getByIndex(visual.baseIndex)
 	if not record or record.owner ~= player then
@@ -373,6 +403,8 @@ local function place(player: Player, visual: Visual): boolean
 	return true
 end
 
+-- Sells the owner's brainrot on a pedestal for price * Config.sellFraction and empties the slot.
+-- Returns: the cash paid out, or 0 if not the owner or the slot is empty.
 local function sell(player: Player, visual: Visual): number
 	local record = Bases.getByIndex(visual.baseIndex)
 	if not record or record.owner ~= player then
@@ -393,6 +425,8 @@ local function sell(player: Player, visual: Visual): number
 	return payout
 end
 
+-- Attempts a place on the pedestal at the given base and slot index.
+-- Returns: true if placed, false if the pedestal is unknown or the place was refused.
 function Pedestal.tryPlace(player: Player, baseIndex: number, slotIndex: number): boolean
 	local visual = Pedestal.visual(baseIndex, slotIndex)
 	if not visual then
@@ -401,6 +435,8 @@ function Pedestal.tryPlace(player: Player, baseIndex: number, slotIndex: number)
 	return place(player, visual)
 end
 
+-- Attempts a sale on the pedestal at the given base and slot index.
+-- Returns: the payout, or 0 if the pedestal is unknown or the sale was refused.
 function Pedestal.trySell(player: Player, baseIndex: number, slotIndex: number): number
 	local visual = Pedestal.visual(baseIndex, slotIndex)
 	if not visual then
@@ -409,6 +445,8 @@ function Pedestal.trySell(player: Player, baseIndex: number, slotIndex: number):
 	return sell(player, visual)
 end
 
+-- Pays each player placed income * income multiplier * Config.incomeTickRate when positive.
+-- Returns: nothing.
 function Pedestal.tickIncome()
 	local Players = game:GetService("Players")
 	for _, player in Players:GetPlayers() do
@@ -422,6 +460,8 @@ function Pedestal.tickIncome()
 	end
 end
 
+-- Connects place and sell prompts to the matching pedestal's place and sell actions.
+-- Returns: nothing.
 function Pedestal.bind()
 	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
 		local top = prompt.Parent
@@ -446,6 +486,8 @@ function Pedestal.bind()
 	end)
 end
 
+-- Starts the income loop, running Pedestal.tickIncome every Config.incomeTickRate seconds (once only).
+-- Returns: nothing.
 function Pedestal.start()
 	if ticking then
 		return
@@ -462,6 +504,8 @@ function Pedestal.start()
 	end)
 end
 
+-- Signals the income loop to stop after its current wait.
+-- Returns: nothing.
 function Pedestal.stop()
 	ticking = false
 end

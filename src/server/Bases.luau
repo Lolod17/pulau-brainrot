@@ -1,6 +1,12 @@
 -- Bases: owns per-player base plots: assignment, ownership boards, teleporting owners to their plot, and the base lock timer.
 -- Server gameplay is authoritative; the client only renders and sends intents.
 -- Public API: Bases.init, Bases.records, Bases.get, Bases.getByIndex, Bases.assign, Bases.release, Bases.teleport, Bases.spawnAt, Bases.bindCharacter, Bases.isLocked, Bases.setLock, Bases.ownerOf
+-- contract:
+--   Owns: min(#plotCentres, Config.baseCount) base records, the player->record map, and a FIFO waiting queue.
+--   Assign: returns the player's existing record, else the first record with no owner (sets owner, PlayerState.setBase, board = player.Name);
+--   if none is free the player is enqueued and nil is returned. Release: clears owner and PlayerState base, calls Lock.unlock,
+--   resets board to "Pemilik", then pops the queue until a still-present unassigned player is assigned and spawned there.
+--   Validates: teleport needs a record, a character and a BasePart HumanoidRootPart; isLocked returns lockedUntil > (now or os.clock()).
 --!strict
 
 local Players = game:GetService("Players")

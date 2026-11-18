@@ -83,6 +83,15 @@ local BLACK = Color3.fromRGB(22, 22, 26)
 local WHITE = Color3.fromRGB(245, 245, 248)
 
 -- === catalogue ===
+-- tier table
+-- name            rarity       price   income/s  threshold
+-- Ikan Terbang    Common          50         5        450
+-- Kepiting Disco  Uncommon       150        15        700
+-- Penyu Turbo     Rare           400        40        880
+-- Gurita DJ       Epic          1000       100        960
+-- Hiu Bajak Laut  Legendary     3000       300        988
+-- Paus Api        Mythic       12000      1200        998
+-- Kraken Emas     Ultra Rare   50000     10000       1000
 local ENTRIES: { Entry } = {
 	{
 		id = "ikan_terbang",
@@ -333,6 +342,8 @@ local Cast = {
 }
 
 -- === public api ===
+-- roll: draws n in 1..1000 and returns the first entry (in table order) whose threshold >= n,
+-- so Common 1-450, Uncommon 451-700, Rare 701-880, Epic 881-960, Legendary 961-988, Mythic 989-998, Ultra Rare 999-1000.
 function Cast.roll(rng: Random?): Entry
 	local n = if rng then rng:NextInteger(1, 1000) else math.random(1, 1000)
 	for _, entry in ENTRIES do

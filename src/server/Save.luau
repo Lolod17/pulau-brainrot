@@ -1,6 +1,12 @@
 -- Save: owns DataStore persistence of player state on join, leave, and server shutdown.
 -- Server gameplay is authoritative; the client only renders and sends intents.
 -- Public API: Save.load, Save.save, Save.saveAll, Save.bind, Save.startingCash
+-- contract:
+--   Owns: the lazily fetched "PulauBrainrot_v1" DataStore (looked up once), keys "p_" .. UserId.
+--   pcall wrapped: GetDataStore (failure -> warn, store nil, session-only), GetAsync (failure -> warn, load returns nil),
+--   SetAsync (failure -> warn, save returns false), each Save.save inside saveAll (failure -> warn, skip player), BindToClose (failure -> warn).
+--   Validates: load returns the stored value only if it is a table; save needs a store and a PlayerState.serialize payload, stamps version = 1.
+--   Returns: load -> table or nil; save -> boolean; startingCash -> Config.startingCash.
 --!strict
 
 local DataStoreService = game:GetService("DataStoreService")

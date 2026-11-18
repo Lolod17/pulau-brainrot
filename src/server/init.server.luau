@@ -7,9 +7,28 @@
 -- boot order: connect PlayerAdded/PlayerRemoving, spawn onPlayer for present players, then start Pedestal, Lock, Dock, Storm, bind Save.
 --!strict
 
+-- boot order (as this file runs it, top to bottom):
+--   1. world: require World, which builds the island once and returns the anchors (pierSpawns, plotCentres, pedestals, rebirth, centre);
+--      the same pass requires Config, PlayerState, Bases, Carry, Dock, Pedestal, Lock, Steal, Rebirth, Save and Storm.
+--   2. remotes: create ReplicatedStorage.Net with the State, Notify and Alert RemoteEvents.
+--   3. bases: Bases.init(anchors) builds the base records on the plot centres.
+--   4. pedestal, lock, steal: Pedestal.init, Lock.init, Steal.init set up slots, fences/boards and steal prompts.
+--   5. rebirth: Rebirth.init(anchors.rebirth) builds the rebirth sign and prompt.
+--   6. dock: Dock.init(anchors, workspace) sets up the pier spawn spots.
+--   7. storm: Storm.init(anchors) sets up the storm cycle and notify remotes.
+--   8. bind: Pedestal.bind, Lock.bind, Steal.bind, Rebirth.bind hook up the place/sell, lock, steal and rebirth prompts.
+--   9. joins and leaves: PlayerAdded queues a serialised join (save: Save.load, PlayerState.create, Bases.assign,
+--      Bases.bindCharacter, LoadCharacter, carry: Carry.restore, Pedestal.sync, first push); PlayerRemoving runs Save.save,
+--      Carry.clear, Pedestal.clearBase, Steal.clear, Bases.release; players already present are queued too.
+--  10. income tick: Pedestal.start starts the income loop (every Config.incomeTickRate seconds).
+--  11. Lock.start (lock countdown ticker), Dock.start (restocking), Storm.start (storm cycle), Save.bind (save all on BindToClose).
+--  12. state push loop: every Config.statePushRate seconds push each player's state and lock alert.
+
+-- services
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+-- module requires
 local Config = require(script:WaitForChild("Config"))
 local PlayerState = require(script:WaitForChild("PlayerState"))
 local World = require(script:WaitForChild("World"))
@@ -23,13 +42,16 @@ local Rebirth = require(script:WaitForChild("Rebirth"))
 local Save = require(script:WaitForChild("Save"))
 local Storm = require(script:WaitForChild("Storm"))
 
+-- character autoload
 Players.CharacterAutoLoads = true
 
+-- Net remotes folder
 local net = Instance.new("Folder")
 net.Name = "Net"
 net.Parent = ReplicatedStorage
 
 -- === remotes ===
+-- remote factory
 local function remote(name: string): RemoteEvent
 	local event = Instance.new("RemoteEvent")
 	event.Name = name
@@ -37,11 +59,13 @@ local function remote(name: string): RemoteEvent
 	return event
 end
 
+-- remote events
 local stateEvent = remote("State")
 remote("Notify")
 local alertEvent = remote("Alert")
 
 -- === module setup ===
+-- module init
 local anchors = World
 Bases.init(anchors)
 Pedestal.init()
@@ -51,14 +75,17 @@ Rebirth.init(anchors.rebirth)
 Dock.init(anchors, workspace)
 Storm.init(anchors)
 
+-- module prompt binding
 Pedestal.bind()
 Lock.bind()
 Steal.bind()
 Rebirth.bind()
 
+-- last pushed cash per player
 local lastPushedCash: { [Player]: number } = {}
 
 -- === player lifecycle ===
+-- state push to one player
 local function push(player: Player, previousCash: number?)
 	local payload = PlayerState.serialize(player)
 	if payload then
@@ -72,6 +99,7 @@ local function push(player: Player, previousCash: number?)
 	end
 end
 
+-- join handler
 local function onPlayer(player: Player)
 	local loaded: { [string]: any }? = nil
 	local ok, result = pcall(function()
@@ -103,9 +131,11 @@ local function onPlayer(player: Player)
 	Storm.notify(player, "join", "Welcome to Pulau Brainrot")
 end
 
+-- join queue state
 local joinQueue: { Player } = {}
 local joinRunning = false
 
+-- join queue pump
 local function pumpJoins()
 	if joinRunning then
 		return
@@ -123,11 +153,13 @@ local function pumpJoins()
 	joinRunning = false
 end
 
+-- join enqueue
 local function queueJoin(player: Player)
 	table.insert(joinQueue, player)
 	task.spawn(pumpJoins)
 end
 
+-- leave handler
 local function onLeave(player: Player)
 	local ok, err = pcall(function()
 		Save.save(player)
@@ -155,10 +187,12 @@ local function onLeave(player: Player)
 end
 
 -- === player lifecycle ===
+-- PlayerAdded hook
 Players.PlayerAdded:Connect(function(player)
 	queueJoin(player)
 end)
 
+-- PlayerRemoving hook
 Players.PlayerRemoving:Connect(function(player)
 	local ok, err = pcall(onLeave, player)
 	if not ok then
@@ -166,10 +200,12 @@ Players.PlayerRemoving:Connect(function(player)
 	end
 end)
 
+-- queue players already present
 for _, player in Players:GetPlayers() do
 	queueJoin(player)
 end
 
+-- income tick, module loops and save binding
 Pedestal.start()
 Lock.start()
 Dock.start()
@@ -177,6 +213,7 @@ Storm.start()
 Save.bind()
 
 -- === state push loop ===
+-- state push loop
 task.spawn(function()
 	while true do
 		task.wait(Config.statePushRate)

@@ -1,6 +1,18 @@
 -- World: owns generating the island map once at startup and returning the anchors other modules wire to.
 -- Server gameplay is authoritative; the client only renders and sends intents.
 -- Public API: World (build() returns the anchors table: pierSpawns, plotCentres, pedestals, rebirth, centre)
+-- island layout
+--   eight plot centres (y = PLOT_Y = 2.2, PLOT = 34 studs square), from build():
+--     west, x = -118: Base1 z = -8, Base2 z = 34, Base3 z = 76, Base4 z = 118
+--     east, x =  118: Base5 z = -8, Base6 z = 34, Base7 z = 76, Base8 z = 118
+--   pedestal grid: 3 columns x 2 rows per base, spacing GAP = 7 studs both ways,
+--     in hut space at x = col * 7 (col -1..1), z = -12.2 - row * 7 (row 0..1)
+--   pier spawn x: -16 (PierSpawn1) and 16 (PierSpawn2), pad at z = PIER_Z - 16 = -19
+--   island radius: no radius constant exists; the land is irregular overlapping slabs.
+--     Outermost sand slab centres: SpitWestTip (-198, 92), SpitSouthTip (48, 204),
+--     ShelfE (150, 14), ShelfNE (140, -48). Sea plane is 980 x 980 centred on (0, 40).
+--   plot size: PLOT = 34 x 34 studs (0.8 thick); pedestals built: 8 bases x 6 = 48 in total
+--   sea and land are anchored parts (create sets Anchored = true); applyLighting moves Baseplate to y = -30
 --!strict
 
 local Lighting = game:GetService("Lighting")
@@ -67,6 +79,8 @@ local INK = Color3.fromRGB(62, 36, 18)
 local decorCount = 0
 
 -- === geometry helpers ===
+-- Builds one anchored, smooth-surfaced Part from the given name, size, CFrame, colour, material and options, optionally tagged Decor.
+-- Returns the new Part (and bumps decorCount when decorated).
 local function create(
 	name: string,
 	size: Vector3,
@@ -99,6 +113,8 @@ local function create(
 	return p
 end
 
+-- Builds a structural (non-decor) Part by forwarding to create with decorated = false.
+-- Returns the new Part.
 local function part(
 	name: string,
 	size: Vector3,
@@ -113,6 +129,8 @@ local function part(
 	return create(name, size, cf, color, material, parent, shape, transparency, canCollide, false)
 end
 
+-- Builds a decorative Part by forwarding to create with decorated = true, so it gets the Decor attribute.
+-- Returns the new Part.
 local function decor(
 	name: string,
 	size: Vector3,
@@ -127,10 +145,14 @@ local function decor(
 	return create(name, size, cf, color, material, parent, shape, transparency, canCollide, true)
 end
 
+-- Builds a CFrame at center rolled 90 degrees on Z so a cylinder's length axis points straight up.
+-- Returns that CFrame.
 local function upright(center: Vector3): CFrame
 	return CFrame.new(center) * CFrame.Angles(0, 0, math.rad(90))
 end
 
+-- Builds a CFrame at the midpoint of a and b that lays a cylinder's length axis along a to b (upright when degenerate or vertical).
+-- Returns that CFrame.
 local function span(a: Vector3, b: Vector3): CFrame
 	local delta = b - a
 	local mid = (a + b) / 2
@@ -144,6 +166,8 @@ local function span(a: Vector3, b: Vector3): CFrame
 	return CFrame.lookAt(mid, b) * CFrame.Angles(0, math.rad(90), 0)
 end
 
+-- Builds a cylinder Part stretched between points a and b with the given diameter, as decor or structure.
+-- Returns the new Part.
 local function cyl(
 	name: string,
 	a: Vector3,
@@ -159,6 +183,8 @@ local function cyl(
 	return builder(name, Vector3.new((b - a).Magnitude, diameter, diameter), span(a, b), color, material, parent, Enum.PartType.Cylinder, nil, canCollide)
 end
 
+-- Builds a vertical cylinder Part of the given height and diameter centred on center, as decor or structure.
+-- Returns the new Part.
 local function vcyl(
 	name: string,
 	center: Vector3,
@@ -175,6 +201,8 @@ local function vcyl(
 end
 
 -- === decoration helpers ===
+-- Builds a SurfaceGui with a scaled OwnerName TextLabel on the board's front face showing text.
+-- Returns nothing.
 local function write(board: BasePart, text: string)
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = "SignGui"
@@ -193,6 +221,8 @@ local function write(board: BasePart, text: string)
 	label.Parent = gui
 end
 
+-- Builds a PointLight of the given colour and range parented to host.
+-- Returns nothing.
 local function glow(host: BasePart, color: Color3, range: number)
 	local light = Instance.new("PointLight")
 	light.Color = color
@@ -202,6 +232,8 @@ local function glow(host: BasePart, color: Color3, range: number)
 end
 
 -- === lighting ===
+-- Builds the island lighting: sets Lighting properties, replaces sky and post effects, flags LightingOk, drops the Baseplate.
+-- Returns nothing.
 local function applyLighting()
 	Lighting.ClockTime = 14.2
 	Lighting.Brightness = 3.2
@@ -297,25 +329,35 @@ local function applyLighting()
 end
 
 -- === land ===
+-- Builds a block Part from name, size and CFrame, as decor or structure.
+-- Returns nothing.
 local function slab(name: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material, parent: Instance, decorated: boolean?)
 	local builder = if decorated then decor else part
 	builder(name, size, cf, color, material, parent, Enum.PartType.Block)
 end
 
+-- Builds a sand block whose top sits at y, centred on x/z and turned by yaw degrees.
+-- Returns nothing.
 local function beachSlab(name: string, size: Vector3, x: number, z: number, y: number, yaw: number, parent: Instance, color: Color3?)
 	part(name, size, CFrame.new(x, y - size.Y / 2, z) * CFrame.Angles(0, math.rad(yaw), 0), color or SAND, Enum.Material.Sand, parent)
 end
 
+-- Builds a grass block whose top sits at y, centred on x/z and turned by yaw degrees.
+-- Returns nothing.
 local function grassSlab(name: string, size: Vector3, x: number, z: number, y: number, yaw: number, parent: Instance, color: Color3?)
 	part(name, size, CFrame.new(x, y - size.Y / 2, z) * CFrame.Angles(0, math.rad(yaw), 0), color or GRASS, Enum.Material.Grass, parent)
 end
 
+-- Builds a wedge Part from name, size and CFrame, as decor or structure.
+-- Returns nothing.
 local function wedge(name: string, size: Vector3, cf: CFrame, color: Color3, material: Enum.Material, parent: Instance, decorated: boolean?)
 	local builder = if decorated then decor else part
 	builder(name, size, cf, color, material, parent, Enum.PartType.Wedge)
 end
 
 -- === land ===
+-- Builds three stepped grass mounds (west, east, south), four shrinking tiers each.
+-- Returns nothing.
 local function buildMounds(parent: Instance)
 	local mounds = {
 		{ "MoundWest", -64, 44, 5.2, 12 },
@@ -349,6 +391,8 @@ local function buildMounds(parent: Instance)
 end
 
 -- === land ===
+-- Builds the north east rock outcrop and the five stone climbing steps that lead up it.
+-- Returns nothing.
 local function buildHeadland(parent: Instance)
 	local rocks = {
 		{ "OutcropBase", Vector3.new(16, 4.0, 13), 138, -48, 2.6, 8 },
@@ -383,6 +427,8 @@ local function buildHeadland(parent: Instance)
 end
 
 -- === coast ===
+-- Builds the seabed, sandbar, deep shelf and the translucent non-colliding sea plane.
+-- Returns nothing.
 local function buildSea(parent: Instance)
 	part("Seabed", Vector3.new(980, 6, 980), CFrame.new(0, SEABED_Y - 3, 40), SEABED, Enum.Material.Sand, parent)
 	part("Sandbar", Vector3.new(520, 1.2, 360), CFrame.new(0, SEABED_Y + 0.4, 30), SHALLOW, Enum.Material.Sand, parent)
@@ -392,6 +438,8 @@ local function buildSea(parent: Instance)
 end
 
 -- === coast ===
+-- Builds the sand ring, grass plateau, beach slopes, plaza, rebirth pad and island centre marker, plus mounds and headland.
+-- Returns the Rebirth part and the IslandCentre part.
 local function buildLand(parent: Instance): (BasePart, BasePart)
 	-- organic sand ring: overlapping rotated slabs, y rises from the water inland
 	local sandRing = {
@@ -495,20 +543,28 @@ local PATH = Color3.fromRGB(214, 186, 132)
 local PATH_EDGE = Color3.fromRGB(186, 156, 104)
 
 -- === paths ===
+-- Builds one sandy path slab just below grass level at x/z, turned by yaw degrees.
+-- Returns nothing.
 local function pathSlab(name: string, size: Vector3, x: number, z: number, yaw: number, parent: Instance)
 	part(name, size, CFrame.new(x, GRASS_Y - 0.05, z) * CFrame.Angles(0, math.rad(yaw), 0), PATH, Enum.Material.Sand, parent)
 end
 
 -- === paths ===
+-- Builds one decorative slate pebble at the given point, scaled by scale.
+-- Returns nothing.
 local function pebble(at: Vector3, parent: Instance, scale: number)
 	decor("Pebble", Vector3.new(0.7, 0.35, 0.55) * scale, CFrame.new(at + Vector3.new(0, 0.12, 0)), STONE, Enum.Material.Slate, parent, Enum.PartType.Ball, nil, false)
 end
 
+-- Builds one small decorative shell in the given colour at the given point.
+-- Returns nothing.
 local function shellEdge(at: Vector3, parent: Instance, color: Color3)
 	decor("PathShell", Vector3.new(0.55, 0.28, 0.7), CFrame.new(at + Vector3.new(0, 0.1, 0)), color, Enum.Material.SmoothPlastic, parent, Enum.PartType.Ball, nil, false)
 end
 
 -- === paths ===
+-- Builds the Paths model: spine, cross paths, lanes to the bases, beach paths and pebble/shell crumbs.
+-- Returns nothing.
 local function buildPaths(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "Paths"
@@ -567,6 +623,8 @@ local function buildPaths(parent: Instance)
 end
 
 -- === struct ===
+-- Builds one pier model at originX: planks, posts, crossbeams, ropes, lamps and an invisible spawn pad.
+-- Returns the spawn pad part named spawnName.
 local function buildPier(originX: number, spawnName: string, parent: Instance): BasePart
 	local model = Instance.new("Model")
 	model.Name = spawnName
@@ -623,6 +681,8 @@ local function buildPier(originX: number, spawnName: string, parent: Instance): 
 end
 
 -- === struct ===
+-- Builds the WelcomeSign model on the plaza with the title and subtitle boards.
+-- Returns nothing.
 local function buildSign(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "WelcomeSign"
@@ -655,6 +715,8 @@ end
 
 
 -- === bases ===
+-- Builds one pedestal model (drum, neck, neon ring, neon top) at the given world point.
+-- Returns the PedestalTop part.
 local function buildPedestal(world: Vector3, parent: Instance, index: number): BasePart
 	local model = Instance.new("Model")
 	model.Name = "Pedestal" .. tostring(index)
@@ -668,6 +730,8 @@ local function buildPedestal(world: Vector3, parent: Instance, index: number): B
 end
 
 -- === bases ===
+-- Builds the bamboo fence around a plot, with a gated gap on the side facing points to.
+-- Returns nothing.
 local function buildFence(centre: Vector3, facing: Vector3, parent: Instance)
 	local right = Vector3.new(-facing.Z, 0, facing.X)
 	local half = PLOT / 2
@@ -723,6 +787,8 @@ local function buildFence(centre: Vector3, facing: Vector3, parent: Instance)
 end
 
 -- === bases ===
+-- Builds one base: plot, centre marker, stilt hut, name board, six pedestals and fence.
+-- Returns the PlotCentre marker, the six pedestal tops, and the hut roof peak point.
 local function buildBase(index: number, centre: Vector3, facing: Vector3, parent: Instance): (BasePart, { BasePart }, Vector3)
 	local model = Instance.new("Model")
 	model.Name = "Base" .. tostring(index)
@@ -768,6 +834,8 @@ end
 
 
 -- === vegetation ===
+-- Builds a decorative palm model: leaning three-segment trunk, six leaves, two coconuts.
+-- Returns nothing.
 local function buildPalm(ground: Vector3, lean: Vector3, parent: Instance, scale: number)
 	local model = Instance.new("Model")
 	model.Name = "Palm"
@@ -792,6 +860,8 @@ local function buildPalm(ground: Vector3, lean: Vector3, parent: Instance, scale
 	end
 end
 
+-- Builds a decorative bush model of three mounds with five white blooms.
+-- Returns nothing.
 local function buildBush(ground: Vector3, color: Color3, parent: Instance, wide: number)
 	local model = Instance.new("Model")
 	model.Name = "Bush"
@@ -805,6 +875,8 @@ local function buildBush(ground: Vector3, color: Color3, parent: Instance, wide:
 	end
 end
 
+-- Builds a decorative fern model of six fronds turned by yaw.
+-- Returns nothing.
 local function buildFern(ground: Vector3, parent: Instance, yaw: number)
 	local model = Instance.new("Model")
 	model.Name = "Fern"
@@ -817,6 +889,8 @@ local function buildFern(ground: Vector3, parent: Instance, yaw: number)
 	end
 end
 
+-- Builds a decorative banana plant model with two stalks, six blades and two bunches.
+-- Returns nothing.
 local function buildBanana(ground: Vector3, parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "BananaPlant"
@@ -833,6 +907,8 @@ local function buildBanana(ground: Vector3, parent: Instance)
 	decor("Bunch2", Vector3.new(0.7, 1.1, 0.55), CFrame.new(ground + Vector3.new(-0.2, 3.6, -0.15)), Color3.fromRGB(214, 176, 40), Enum.Material.SmoothPlastic, model)
 end
 
+-- Builds a decorative rock model of three boulders, scaled and tinted.
+-- Returns nothing.
 local function buildRock(ground: Vector3, scale: number, parent: Instance, color: Color3?)
 	local tint = color or ROCK
 	local model = Instance.new("Model")
@@ -845,11 +921,15 @@ local function buildRock(ground: Vector3, scale: number, parent: Instance, color
 	decor("BoulderBack", Vector3.new(1.5 * scale, h2 * 0.8, 1.3 * scale), CFrame.new(ground + Vector3.new(-0.8 * scale, h2 * 0.35, -0.5 * scale)), tint:Lerp(STONE, 0.3), Enum.Material.Rock, model, Enum.PartType.Ball)
 end
 
+-- Builds a decorative mushroom (stem and cap) in the given colour and scale.
+-- Returns nothing.
 local function buildMushroom(ground: Vector3, parent: Instance, color: Color3, scale: number)
 	vcyl("Stem", ground + Vector3.new(0, 0.7 * scale, 0), 1.4 * scale, 0.45 * scale, Color3.fromRGB(236, 220, 190), Enum.Material.SmoothPlastic, parent, true)
 	decor("Cap", Vector3.new(1.5 * scale, 0.55 * scale, 1.5 * scale), CFrame.new(ground + Vector3.new(0, 1.45 * scale, 0)), color, Enum.Material.SmoothPlastic, parent, Enum.PartType.Ball, nil, false)
 end
 
+-- Builds a decorative fallen log with a cut end and a moss strip, turned by yaw.
+-- Returns nothing.
 local function buildLog(ground: Vector3, yaw: number, parent: Instance)
 	local cf = CFrame.new(ground + Vector3.new(0, 0.7, 0)) * CFrame.Angles(0, yaw, math.rad(8))
 	local a = cf:PointToWorldSpace(Vector3.new(-3.2, 0, 0))
@@ -861,23 +941,31 @@ end
 
 
 -- === props ===
+-- Builds a decorative wooden crate with a band, of side size (default 2.2).
+-- Returns nothing.
 local function crate(at: Vector3, yaw: number, parent: Instance, size: number?)
 	local s = size or 2.2
 	decor("Crate", Vector3.new(s, s, s), CFrame.new(at + Vector3.new(0, s / 2, 0)) * CFrame.Angles(0, yaw, 0), WOOD, Enum.Material.WoodPlanks, parent)
 	decor("CrateBand", Vector3.new(s + 0.08, 0.16, s + 0.08), CFrame.new(at + Vector3.new(0, s * 0.72, 0)) * CFrame.Angles(0, yaw, 0), WOOD_DARK, Enum.Material.Wood, parent)
 end
 
+-- Builds a decorative barrel with two metal hoops.
+-- Returns nothing.
 local function barrel(at: Vector3, parent: Instance)
 	vcyl("Barrel", at + Vector3.new(0, 1.05, 0), 2.1, 1.7, Color3.fromRGB(120, 72, 38), Enum.Material.Wood, parent, true)
 	vcyl("Hoop", at + Vector3.new(0, 0.55, 0), 0.12, 1.82, Color3.fromRGB(70, 70, 74), Enum.Material.Metal, parent, true, false)
 	vcyl("HoopTop", at + Vector3.new(0, 1.55, 0), 0.12, 1.82, Color3.fromRGB(70, 70, 74), Enum.Material.Metal, parent, true, false)
 end
 
+-- Builds a decorative rope coil around a wooden core.
+-- Returns nothing.
 local function coil(at: Vector3, parent: Instance)
 	vcyl("RopeCoil", at + Vector3.new(0, 0.28, 0), 0.55, 2.1, ROPE, Enum.Material.Fabric, parent, true, false)
 	vcyl("RopeCore", at + Vector3.new(0, 0.32, 0), 0.6, 0.8, WOOD_DARK, Enum.Material.Wood, parent, true, false)
 end
 
+-- Builds a decorative fishing net hung between two bamboo posts.
+-- Returns nothing.
 local function hungNet(at: Vector3, yaw: number, parent: Instance)
 	local cf = CFrame.new(at) * CFrame.Angles(0, yaw, 0)
 	local left = cf.Position + cf.RightVector * -1.8
@@ -888,6 +976,8 @@ local function hungNet(at: Vector3, yaw: number, parent: Instance)
 	decor("Net", Vector3.new(3.4, 3.0, 0.12), cf * CFrame.new(0, 1.9, 0), Color3.fromRGB(214, 204, 176), Enum.Material.Fabric, parent, nil, 0.22, false)
 end
 
+-- Builds a decorative beached boat with hull, sides, bow, seat and two oars.
+-- Returns nothing.
 local function beachedBoat(at: Vector3, yaw: number, parent: Instance)
 	local cf = CFrame.new(at + Vector3.new(0, 0.7, 0)) * CFrame.Angles(0, yaw, math.rad(4))
 	decor("Hull", Vector3.new(2.4, 1.1, 6.4), cf, WOOD, Enum.Material.Wood, parent)
@@ -905,6 +995,8 @@ local function beachedBoat(at: Vector3, yaw: number, parent: Instance)
 end
 
 -- === props ===
+-- Builds a FishingCorner model of crates, barrels, a coil, a net and a beached boat.
+-- Returns nothing.
 local function buildFishingCorner(origin: Vector3, yaw: number, parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "FishingCorner"
@@ -924,6 +1016,8 @@ local function buildFishingCorner(origin: Vector3, yaw: number, parent: Instance
 end
 
 -- === props ===
+-- Builds the FruitStall model near the plaza with awning, fruit, crates and a buah sign.
+-- Returns nothing.
 local function buildFruitStall(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "FruitStall"
@@ -955,6 +1049,8 @@ local function buildFruitStall(parent: Instance)
 	write(sign, "buah")
 end
 
+-- Builds a decorative beach umbrella with a pole, six panels and a cap.
+-- Returns nothing.
 local function umbrella(at: Vector3, color: Color3, parent: Instance)
 	vcyl("UmbrellaPole", at + Vector3.new(0, 2.6, 0), 5.2, 0.28, WHITE, Enum.Material.SmoothPlastic, parent, true)
 	for i = 1, 6 do
@@ -966,12 +1062,16 @@ local function umbrella(at: Vector3, color: Color3, parent: Instance)
 	decor("UmbrellaCap", Vector3.new(0.6, 0.35, 0.6), CFrame.new(at + Vector3.new(0, 5.55, 0)), color, Enum.Material.SmoothPlastic, parent, Enum.PartType.Ball, nil, false)
 end
 
+-- Builds a decorative beach towel with a white stripe.
+-- Returns nothing.
 local function towel(at: Vector3, yaw: number, color: Color3, parent: Instance)
 	decor("Towel", Vector3.new(3.2, 0.1, 5.4), CFrame.new(at + Vector3.new(0, 0.06, 0)) * CFrame.Angles(0, yaw, 0), color, Enum.Material.Fabric, parent, nil, nil, false)
 	decor("TowelStripe", Vector3.new(3.2, 0.12, 0.55), CFrame.new(at + Vector3.new(0, 0.08, 0.6)) * CFrame.Angles(0, yaw, 0), WHITE, Enum.Material.Fabric, parent, nil, nil, false)
 end
 
 -- === beach life ===
+-- Builds the BeachClub model on the west spit: umbrellas, towels, lifeguard chair, ball, hut.
+-- Returns nothing.
 local function buildBeachClub(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "BeachClub"
@@ -1003,11 +1103,15 @@ local function buildBeachClub(parent: Instance)
 end
 
 -- === beach life ===
+-- Builds one decorative tide pool (rock rim and glass water).
+-- Returns nothing.
 local function tidePool(at: Vector3, parent: Instance)
 	decor("PoolRim", Vector3.new(4.2, 0.5, 3.4), CFrame.new(at + Vector3.new(0, 0.15, 0)), ROCK, Enum.Material.Slate, parent, Enum.PartType.Cylinder)
 	decor("PoolWater", Vector3.new(3.2, 0.25, 2.5), CFrame.new(at + Vector3.new(0, 0.28, 0)), SEA, Enum.Material.Glass, parent, Enum.PartType.Cylinder, 0.35, false)
 end
 
+-- Builds one decorative five-armed starfish.
+-- Returns nothing.
 local function starfishBig(ground: Vector3, parent: Instance)
 	for i = 1, 5 do
 		local angle = math.rad((i - 1) * 72)
@@ -1018,6 +1122,8 @@ local function starfishBig(ground: Vector3, parent: Instance)
 end
 
 -- === beach life ===
+-- Builds the TidePools model on the south shore: pools, rocks, corals, starfish, shells.
+-- Returns nothing.
 local function buildTidePools(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "TidePools"
@@ -1048,6 +1154,8 @@ local function buildTidePools(parent: Instance)
 end
 
 -- === landmarks ===
+-- Builds the JungleCorner model of bananas, ferns, bushes, a log, mushrooms and a rock.
+-- Returns nothing.
 local function buildJungle(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "JungleCorner"
@@ -1069,6 +1177,8 @@ local function buildJungle(parent: Instance)
 	buildRock(origin + Vector3.new(7, 0, -1), 0.8, model, ROCK)
 end
 
+-- Builds the Lookout model on the headland: deck on stilts, rails, telescope, rocks.
+-- Returns nothing.
 local function buildLookout(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "Lookout"
@@ -1102,6 +1212,8 @@ local function buildLookout(parent: Instance)
 	buildRock(origin + Vector3.new(-2, -2.2, -4), 2.0, model, ROCK_DARK)
 end
 
+-- Builds the Shrine model by the plaza with altar, roof, lamps, bushes and an offering.
+-- Returns nothing.
 local function buildShrine(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "Shrine"
@@ -1121,6 +1233,8 @@ local function buildShrine(parent: Instance)
 end
 
 -- === harbour ===
+-- Builds a decorative dinghy with a mooring rope.
+-- Returns nothing.
 local function dinghy(at: Vector3, yaw: number, parent: Instance)
 	local cf = CFrame.new(at) * CFrame.Angles(0, yaw, math.rad(3))
 	decor("DinghyHull", Vector3.new(2.2, 0.9, 5.2), cf, WOOD_LIGHT, Enum.Material.Wood, parent)
@@ -1132,6 +1246,8 @@ local function dinghy(at: Vector3, yaw: number, parent: Instance)
 end
 
 -- === harbour ===
+-- Builds the BoatDock model on the east shore: planks, piles, two dinghies, a lamp.
+-- Returns nothing.
 local function buildBoatDock(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "BoatDock"
@@ -1150,6 +1266,8 @@ local function buildBoatDock(parent: Instance)
 	glow(lamp, LAMP, 14)
 end
 
+-- Builds one decorative glowing buoy with a band and a tether to the seabed.
+-- Returns nothing.
 local function buildBuoy(position: Vector3, parent: Instance)
 	local body = decor("Float", Vector3.new(1.8, 1.8, 1.8), CFrame.new(position), BUOY, Enum.Material.SmoothPlastic, parent, Enum.PartType.Ball, nil, false)
 	vcyl("Band", position, 0.32, 1.9, WHITE, Enum.Material.SmoothPlastic, parent, true, false)
@@ -1157,6 +1275,8 @@ local function buildBuoy(position: Vector3, parent: Instance)
 	glow(body, BUOY, 10)
 end
 
+-- Builds a sagging neon string light between a and b with a bulb at the dip.
+-- Returns nothing.
 local function buildWire(a: Vector3, b: Vector3, parent: Instance)
 	local mid = (a + b) / 2 + Vector3.new(0, -1.6, 0)
 	cyl("StringLight", a, mid, 0.14, LAMP, Enum.Material.Neon, parent, true, false)
@@ -1164,6 +1284,8 @@ local function buildWire(a: Vector3, b: Vector3, parent: Instance)
 	decor("Bulb", Vector3.new(0.35, 0.35, 0.35), CFrame.new(mid), LAMP, Enum.Material.Neon, parent, Enum.PartType.Ball, nil, false)
 end
 
+-- Builds one decorative lantern post with a glowing lantern.
+-- Returns nothing.
 local function buildLanternPost(ground: Vector3, parent: Instance)
 	vcyl("Pole", ground + Vector3.new(0, 3.0, 0), 6.0, 0.42, WOOD_DARK, Enum.Material.Wood, parent, true)
 	decor("Cross", Vector3.new(1.6, 0.2, 0.2), CFrame.new(ground + Vector3.new(0, 5.7, 0)), WOOD, Enum.Material.Wood, parent)
@@ -1172,6 +1294,8 @@ local function buildLanternPost(ground: Vector3, parent: Instance)
 end
 
 -- === scatter ===
+-- Builds the scattered palms, flowering bushes and shoreline rocks.
+-- Returns nothing.
 local function scatterGreens(parent: Instance)
 	local spots = {
 		{ Vector3.new(-30, GRASS_Y, 48), 1.0, Vector3.new(-0.6, 0, 0.4) },
@@ -1203,6 +1327,8 @@ local function scatterGreens(parent: Instance)
 end
 
 -- === market and grove ===
+-- Builds one decorative market stall with awning and lantern, turned by yaw.
+-- Returns nothing.
 local function stall(at: Vector3, yaw: number, color: Color3, parent: Instance)
 	local cf = CFrame.new(at) * CFrame.Angles(0, yaw, 0)
 	decor("StallCounter", Vector3.new(4.4, 2.0, 2.2), cf * CFrame.new(0, 1.0, 0), WOOD, Enum.Material.Wood, parent)
@@ -1215,6 +1341,8 @@ local function stall(at: Vector3, yaw: number, color: Color3, parent: Instance)
 	glow(lamp, LAMP, 10)
 end
 
+-- Builds the MarketLane model of four stalls, each with a crate.
+-- Returns nothing.
 local function buildMarketLane(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "MarketLane"
@@ -1232,6 +1360,8 @@ local function buildMarketLane(parent: Instance)
 end
 
 -- === market and grove ===
+-- Builds a decorative campfire with a glowing flame and four log seats.
+-- Returns nothing.
 local function campfire(at: Vector3, parent: Instance)
 	decor("FireRing", Vector3.new(3.4, 0.5, 3.4), CFrame.new(at + Vector3.new(0, 0.2, 0)), ROCK, Enum.Material.Slate, parent, Enum.PartType.Cylinder)
 	local flame = decor("Flame", Vector3.new(1.1, 1.6, 1.1), CFrame.new(at + Vector3.new(0, 1.0, 0)), ORANGE, Enum.Material.Neon, parent, Enum.PartType.Ball, nil, false)
@@ -1244,6 +1374,8 @@ local function campfire(at: Vector3, parent: Instance)
 end
 
 -- === market and grove ===
+-- Builds the PalmGrove model of six palms around a campfire.
+-- Returns nothing.
 local function buildPalmGrove(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "PalmGrove"
@@ -1264,11 +1396,15 @@ local function buildPalmGrove(parent: Instance)
 end
 
 -- === water and coast ===
+-- Builds one decorative lily pad with a pink bloom.
+-- Returns nothing.
 local function lily(at: Vector3, parent: Instance)
 	decor("Lily", Vector3.new(1.6, 0.12, 1.6), CFrame.new(at + Vector3.new(0, 0.1, 0)), LEAF, Enum.Material.Grass, parent, Enum.PartType.Cylinder, nil, false)
 	decor("LilyBloom", Vector3.new(0.6, 0.3, 0.6), CFrame.new(at + Vector3.new(0, 0.28, 0)), PINK, Enum.Material.SmoothPlastic, parent, Enum.PartType.Ball, nil, false)
 end
 
+-- Builds the Pond model with rim, water, lilies, reeds and a footbridge.
+-- Returns nothing.
 local function buildPond(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "Pond"
@@ -1291,6 +1427,8 @@ local function buildPond(parent: Instance)
 end
 
 -- === water and coast ===
+-- Builds one decorative flower bed of five flowers on soil, turned by yaw.
+-- Returns nothing.
 local function flowerBed(at: Vector3, yaw: number, color: Color3, parent: Instance)
 	local cf = CFrame.new(at) * CFrame.Angles(0, yaw, 0)
 	decor("BedSoil", Vector3.new(6, 0.4, 2.2), cf * CFrame.new(0, 0.15, 0), SAND_DARK, Enum.Material.Ground, parent)
@@ -1299,6 +1437,8 @@ local function flowerBed(at: Vector3, yaw: number, color: Color3, parent: Instan
 	end
 end
 
+-- Builds the FlowerBeds model of five beds along the spine.
+-- Returns nothing.
 local function buildFlowerBeds(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "FlowerBeds"
@@ -1316,10 +1456,14 @@ local function buildFlowerBeds(parent: Instance)
 end
 
 -- === water and coast ===
+-- Builds one decorative strip of surf foam, turned by yaw.
+-- Returns nothing.
 local function foam(at: Vector3, yaw: number, parent: Instance)
 	decor("Foam", Vector3.new(7, 0.16, 1.4), CFrame.new(at) * CFrame.Angles(0, yaw, 0), WHITE, Enum.Material.SmoothPlastic, parent, nil, 0.15, false)
 end
 
+-- Builds one decorative piece of driftwood, turned by yaw.
+-- Returns nothing.
 local function driftwood(at: Vector3, yaw: number, parent: Instance)
 	local cf = CFrame.new(at + Vector3.new(0, 0.3, 0)) * CFrame.Angles(0, yaw, math.rad(6))
 	local a = cf:PointToWorldSpace(Vector3.new(-1.6, 0, 0))
@@ -1327,10 +1471,14 @@ local function driftwood(at: Vector3, yaw: number, parent: Instance)
 	cyl("Driftwood", a, b, 0.55, TRUNK, Enum.Material.Wood, parent, true, false)
 end
 
+-- Builds one decorative beach shell in the given colour.
+-- Returns nothing.
 local function shell(at: Vector3, color: Color3, parent: Instance)
 	decor("Shell", Vector3.new(0.9, 0.4, 1.2), CFrame.new(at + Vector3.new(0, 0.15, 0)), color, Enum.Material.SmoothPlastic, parent, Enum.PartType.Ball, nil, false)
 end
 
+-- Builds a small decorative jetty of four planks and two piles, turned by yaw.
+-- Returns nothing.
 local function jetty(origin: Vector3, yaw: number, parent: Instance)
 	local cf = CFrame.new(origin) * CFrame.Angles(0, yaw, 0)
 	for i = 0, 3 do
@@ -1340,6 +1488,8 @@ local function jetty(origin: Vector3, yaw: number, parent: Instance)
 	vcyl("JettyPile", cf:PointToWorldSpace(Vector3.new(1.4, 0.2, -4.6)), 1.8, 0.34, WOOD_DARK, Enum.Material.Wood, parent, true)
 end
 
+-- Builds a decorative rowboat with a painter rope, turned by yaw.
+-- Returns nothing.
 local function rowboat(at: Vector3, yaw: number, parent: Instance)
 	local cf = CFrame.new(at) * CFrame.Angles(0, yaw, 0)
 	decor("Rowboat", Vector3.new(2.0, 0.8, 4.6), cf, WOOD, Enum.Material.Wood, parent)
@@ -1349,10 +1499,14 @@ local function rowboat(at: Vector3, yaw: number, parent: Instance)
 	cyl("Painter", cleat, cleat + Vector3.new(1.4, -0.6, 1.2), 0.12, ROPE, Enum.Material.Fabric, parent, true, false)
 end
 
+-- Builds one decorative coral head in the given colour.
+-- Returns nothing.
 local function coralHead(at: Vector3, color: Color3, parent: Instance)
 	decor("Coral", Vector3.new(2.2, 1.6, 2.2), CFrame.new(at + Vector3.new(0, 0.5, 0)), color, Enum.Material.Sand, parent, Enum.PartType.Ball, nil, false)
 end
 
+-- Builds the Coast model: rocks, foam, driftwood, shells, jetties, a rowboat and corals.
+-- Returns nothing.
 local function buildCoast(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "Coast"
@@ -1393,6 +1547,8 @@ local function buildCoast(parent: Instance)
 end
 
 -- === plaza ===
+-- Builds a decorative stone planter with soil and a small palm.
+-- Returns nothing.
 local function planter(at: Vector3, parent: Instance)
 	vcyl("Planter", at + Vector3.new(0, 0.7, 0), 1.4, 2.6, STONE, Enum.Material.Slate, parent, true)
 	vcyl("Soil", at + Vector3.new(0, 1.35, 0), 0.3, 2.2, SAND_DARK, Enum.Material.Ground, parent, true, false)
@@ -1400,6 +1556,8 @@ local function planter(at: Vector3, parent: Instance)
 end
 
 -- === plaza ===
+-- Builds the PlazaDress model: paving, rebirth step, planters, light posts, string lights, sign border and flag.
+-- Returns nothing.
 local function buildPlazaDress(parent: Instance)
 	local model = Instance.new("Model")
 	model.Name = "PlazaDress"
@@ -1431,6 +1589,8 @@ local function buildPlazaDress(parent: Instance)
 end
 
 -- === composition ===
+-- Builds all scenery under parent and strings hut lights between the base roof peaks in peaks.
+-- Returns nothing.
 local function buildScenery(parent: Instance, peaks: { Vector3 })
 	buildFishingCorner(Vector3.new(-34, BEACH_Y, -6), 0.4, parent)
 	buildFishingCorner(Vector3.new(34, BEACH_Y, -4), -0.35, parent)
@@ -1494,6 +1654,8 @@ local function buildScenery(parent: Instance, peaks: { Vector3 })
 end
 
 -- === composition ===
+-- Builds the whole island under workspace.Pulau: lighting, sea, land, paths, piers, eight bases, scenery.
+-- Returns the Anchors table (pierSpawns, plotCentres, pedestals, rebirth, centre).
 local function build(): Anchors
 	applyLighting()
 

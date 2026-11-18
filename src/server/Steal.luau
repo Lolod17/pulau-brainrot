@@ -1,6 +1,12 @@
 -- Steal: owns stealing brainrot from another player's pedestal, including cooldowns, validity checks, and notices.
 -- Server gameplay is authoritative; the client only renders and sends intents.
 -- Public API: Steal.reason, Steal.try, Steal.clear, Steal.init, Steal.bind
+-- contract:
+--   Owns: per-thief cooldownUntil clock and the "StealPrompt" ProximityPrompts on every pedestal top.
+--   Validates, in order: "missing" (no record or no owner), "owner" (thief owns the base), "cooldown", "locked" (Lock.baseLocked or
+--   Bases.isLocked), "empty" (owner state missing or slot nil), "carrying" (thief state missing or already carrying; also when Carry.attach fails).
+--   Returns: reason -> Reason; try -> (true, "ok") after moving the slot to the thief and notifying both, else (false, reason).
+--   Note: try starts the thief's Config.stealCooldown before validating, so a refused attempt also starts the cooldown.
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")

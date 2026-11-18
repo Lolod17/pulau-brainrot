@@ -1,6 +1,10 @@
 -- Dock: owns the pier spawn spots, timed restocking of docked brainrot, rare spawn announcements, and the take prompt.
 -- Server gameplay is authoritative; the client only renders and sends intents.
 -- Public API: Dock.standing, Dock.freeSpot, Dock.spawnOne, Dock.stock, Dock.init, Dock.start, Dock.stop, Dock.spots
+-- contract
+-- Owns: the pier spots and the docked brainrot on them, restocked up to Config.dockSpawnCap every Config.dockSpawnInterval seconds.
+-- Refuses: spawning past the cap or without a free spot; refuses a take when the player already carries something or the model is not docked.
+-- Never: spawns more than the cap per restock pass, hands out an unknown brainrot id, or loses a docked model when Carry.attach fails.
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
@@ -52,6 +56,8 @@ local alertRemote: RemoteEvent? = nil
 local Dock = {}
 
 -- === rare announcements ===
+-- Finds or creates the Net.Alert remote and caches it.
+-- Returns: the Alert RemoteEvent, or nil if the Net folder is missing.
 local function alertEvent(): RemoteEvent?
 	if alertRemote then
 		return alertRemote
@@ -70,6 +76,8 @@ local function alertEvent(): RemoteEvent?
 	return alertRemote
 end
 
+-- Tells every client about a rare spawn, plus a burst at its position when it has a root.
+-- Returns: nothing.
 local function announce(model: Model, entry: Cast.Entry)
 	alertRemote = alertEvent()
 	local remote = alertRemote
@@ -96,6 +104,8 @@ local function announce(model: Model, entry: Cast.Entry)
 	end
 end
 
+-- Plays a short particle and light flourish over a rare spawn, then announces it.
+-- Returns: nothing.
 local function flourish(model: Model, entry: Cast.Entry)
 	alertEvent()
 	local color = RARITY_COLOR[entry.rarity] or GOLD
@@ -156,6 +166,8 @@ local function flourish(model: Model, entry: Cast.Entry)
 end
 
 -- === dock spots ===
+-- Adds an instant "Take" prompt to a docked brainrot's root part.
+-- Returns: the new ProximityPrompt.
 local function makePrompt(host: BasePart): ProximityPrompt
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "TakePrompt"
@@ -169,6 +181,8 @@ local function makePrompt(host: BasePart): ProximityPrompt
 end
 
 -- === dock spots ===
+-- Rebuilds the spot list with invisible markers spaced 8 studs apart along each pier.
+-- Returns: nothing.
 local function layoutSpots(anchors: Anchors)
 	table.clear(spots)
 	for pierIndex, spawn in anchors.pierSpawns do
@@ -194,6 +208,8 @@ local function layoutSpots(anchors: Anchors)
 end
 
 -- === public api ===
+-- Counts docked brainrot still in the world, clearing spots whose model is gone.
+-- Returns: the number of occupied spots.
 function Dock.standing(): number
 	local n = 0
 	for _, spot in spots do
@@ -206,6 +222,8 @@ function Dock.standing(): number
 	return n
 end
 
+-- Finds the first spot with no live model, clearing its stale reference.
+-- Returns: that Spot, or nil if every spot is taken.
 function Dock.freeSpot(): Spot?
 	for _, spot in spots do
 		if spot.model == nil or spot.model.Parent == nil then
@@ -216,6 +234,8 @@ function Dock.freeSpot(): Spot?
 	return nil
 end
 
+-- Rolls and docks one brainrot on a free spot with a take prompt, flourishing rare ones.
+-- Returns: the new Model, or nil if at the cap, no spot is free, or not initialised.
 function Dock.spawnOne(rng: Random?): Model?
 	if Dock.standing() >= Config.dockSpawnCap then
 		return nil
@@ -241,6 +261,8 @@ function Dock.spawnOne(rng: Random?): Model?
 	return model
 end
 
+-- Spawns brainrot until the dock reaches Config.dockSpawnCap, at most that many attempts.
+-- Returns: nothing.
 function Dock.stock(rng: Random?)
 	local guard = 0
 	while Dock.standing() < Config.dockSpawnCap and guard < Config.dockSpawnCap do
@@ -251,6 +273,8 @@ function Dock.stock(rng: Random?)
 	end
 end
 
+-- Handles a take: refuses if the player already carries something, else attaches the brainrot and restores the dock on failure.
+-- Returns: nothing.
 local function onTake(prompt: ProximityPrompt, player: Player)
 	if prompt.Name ~= "TakePrompt" then
 		return
@@ -305,6 +329,8 @@ local function onTake(prompt: ProximityPrompt, player: Player)
 	end
 end
 
+-- Creates the Docked folder, lays out the pier spots and connects take prompts.
+-- Returns: nothing.
 function Dock.init(anchors: Anchors, parent: Instance?)
 	folder = Instance.new("Folder")
 	folder.Name = "Docked"
@@ -317,6 +343,8 @@ function Dock.init(anchors: Anchors, parent: Instance?)
 	end)
 end
 
+-- Starts the restock loop, running Dock.stock every Config.dockSpawnInterval seconds (once only).
+-- Returns: nothing.
 function Dock.start()
 	if running then
 		return
@@ -335,10 +363,14 @@ function Dock.start()
 	end)
 end
 
+-- Signals the restock loop to stop after its current wait.
+-- Returns: nothing.
 function Dock.stop()
 	running = false
 end
 
+-- Exposes the live spot list.
+-- Returns: the spots table itself (not a copy).
 function Dock.spots(): { Spot }
 	return spots
 end

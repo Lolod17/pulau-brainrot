@@ -1,6 +1,11 @@
 -- Rebirth: owns rebirth costs, the rebirth prompt and sign, and the reset that spends cash for an income multiplier.
 -- Server gameplay is authoritative; the client only renders and sends intents.
 -- Public API: Rebirth.cost, Rebirth.costFor, Rebirth.multiplier, Rebirth.try, Rebirth.init, Rebirth.bind
+-- contract:
+--   Cost: Config.rebirthBaseCost * (Config.rebirthGrowth ^ rebirths), i.e. 100000 * 2^rebirths. Multiplier: 1 + Config.rebirthIncomeBonus * rebirths, i.e. 1 + 0.5 * rebirths.
+--   try validates the player has state, cash >= cost and PlayerState.spendCash succeeds; returns false otherwise.
+--   On success it clears the carry, slots and base pedestals, adds one rebirth, sets cash to Config.cashAfterRebirth, notifies, and returns true.
+--   bind only calls try for a "RebirthPrompt" trigger by a player who holds a base.
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")

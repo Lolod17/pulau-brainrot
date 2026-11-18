@@ -39,6 +39,8 @@ local RAINBOW = ColorSequence.new({
 	ColorSequenceKeypoint.new(1, Color3.fromRGB(190, 90, 255)),
 })
 
+-- partAABB: measures one part's world-space bounding box from its eight corners.
+-- Returns the (min, max) corner Vector3 pair.
 local function partAABB(piece: BasePart): (Vector3, Vector3)
 	local cf = piece.CFrame
 	local half = piece.Size / 2
@@ -56,6 +58,8 @@ local function partAABB(piece: BasePart): (Vector3, Vector3)
 	return minV, maxV
 end
 
+-- bodyAABB: measures the combined world-space bounds of every model part except the NameSign.
+-- Returns the (min, max) corner Vector3 pair.
 local function bodyAABB(model: Model): (Vector3, Vector3)
 	local minV = Vector3.new(math.huge, math.huge, math.huge)
 	local maxV = Vector3.new(-math.huge, -math.huge, -math.huge)
@@ -69,6 +73,8 @@ local function bodyAABB(model: Model): (Vector3, Vector3)
 	return minV, maxV
 end
 
+-- scaleModel: uniformly scales every part's size and position about the origin.
+-- Returns nothing; mutates the model in place.
 local function scaleModel(model: Model, scale: number)
 	for _, descendant in model:GetDescendants() do
 		if descendant:IsA("BasePart") then
@@ -79,6 +85,8 @@ local function scaleModel(model: Model, scale: number)
 end
 
 -- === display effects ===
+-- addAura: builds the rarity aura particles on the anchor, plus gold light, rainbow trail and beam for kraken_emas.
+-- Returns nothing; parents effects to the anchor.
 local function addAura(anchor: BasePart, entry: Entry)
 	local attachment = Instance.new("Attachment")
 	attachment.Name = "AuraAttachment"
@@ -151,6 +159,8 @@ local function addAura(anchor: BasePart, entry: Entry)
 	beam.Parent = anchor
 end
 
+-- addFlame: builds the Paus Api blowhole flame emitter and orange point light.
+-- Returns nothing; parents effects to the anchor.
 local function addFlame(model: Model, anchor: BasePart)
 	local hole = model:FindFirstChild("Blowhole")
 	local attachment = Instance.new("Attachment")
@@ -183,6 +193,8 @@ local function addFlame(model: Model, anchor: BasePart)
 	glow.Parent = anchor
 end
 
+-- formatIncome: formats an income amount with comma thousands separators.
+-- Returns the grouped digit string.
 local function formatIncome(amount: number): string
 	local digits = tostring(math.floor(amount))
 	local grouped = digits:reverse():gsub("(%d%d%d)", "%1,"):reverse()
@@ -193,6 +205,8 @@ local function formatIncome(amount: number): string
 end
 
 -- === name sign ===
+-- makeLabel: builds one centred GothamBold TextLabel row for the name sign.
+-- Returns the unparented TextLabel.
 local function makeLabel(name: string, text: string, textSize: number, color: Color3, order: number): TextLabel
 	local row = Instance.new("TextLabel")
 	row.Name = name
@@ -210,6 +224,8 @@ local function makeLabel(name: string, text: string, textSize: number, color: Co
 	return row
 end
 
+-- buildFace: builds one SurfaceGui face of the name sign (Locked strip, name, rarity, income).
+-- Returns nothing; parents the gui to the sign.
 local function buildFace(sign: BasePart, face: Enum.NormalId, entry: Entry)
 	local gui = Instance.new("SurfaceGui")
 	gui.Name = if face == Enum.NormalId.Front then "Front" else "Back"
@@ -246,6 +262,8 @@ local function buildFace(sign: BasePart, face: Enum.NormalId, entry: Entry)
 	makeLabel("Income", string.format("+$%s/s", formatIncome(entry.income)), 68, INCOME, 4).Parent = plate
 end
 
+-- setLocked: sets the Locked attribute and shows or hides the LOCKED strip on both sign faces.
+-- Returns nothing.
 local function setLocked(model: Model, locked: boolean)
 	model:SetAttribute("Locked", locked)
 	local sign = model:FindFirstChild("NameSign")
@@ -262,10 +280,14 @@ local function setLocked(model: Model, locked: boolean)
 	end
 end
 
+-- showLocked: re-applies the model's current Locked attribute to its sign.
+-- Returns nothing.
 local function showLocked(model: Model)
 	setLocked(model, model:GetAttribute("Locked") == true)
 end
 
+-- buildSign: builds the anchored NameSign part above the model's bounds with front and back faces.
+-- Returns the sign BasePart.
 local function buildSign(model: Model, entry: Entry, minV: Vector3, maxV: Vector3): BasePart
 	local sign = Instance.new("Part")
 	sign.Name = "NameSign"
@@ -288,6 +310,8 @@ local function buildSign(model: Model, entry: Entry, minV: Vector3, maxV: Vector
 end
 
 -- === welding ===
+-- weldTo: welds another part to the root with a WeldConstraint.
+-- Returns nothing.
 local function weldTo(root: BasePart, other: BasePart)
 	local weld = Instance.new("WeldConstraint")
 	weld.Part0 = root
@@ -295,6 +319,8 @@ local function weldTo(root: BasePart, other: BasePart)
 	weld.Parent = root
 end
 
+-- weldAssembly: welds every other part in the model to the root.
+-- Returns nothing.
 local function weldAssembly(model: Model, root: BasePart)
 	for _, descendant in model:GetDescendants() do
 		if descendant:IsA("BasePart") and descendant ~= root then
@@ -328,6 +354,8 @@ local idleRecords: { [Model]: IdleRecord } = {}
 local idleTicker: RBXScriptConnection? = nil
 
 -- === geometry measurement ===
+-- makeAnim: builds an idle animation record, capturing each part's base CFrame.
+-- Returns the Anim table.
 local function makeAnim(kind: string, parts: { BasePart }, speed: number, amp: number): Anim
 	local bases: { CFrame } = {}
 	for i, part in parts do
@@ -345,6 +373,8 @@ local function makeAnim(kind: string, parts: { BasePart }, speed: number, amp: n
 	}
 end
 
+-- collect: finds the named BaseParts in the model, in name order, skipping missing ones.
+-- Returns the list of found BaseParts.
 local function collect(model: Model, names: { string }): { BasePart }
 	local found: { BasePart } = {}
 	for _, name in names do
@@ -356,6 +386,8 @@ local function collect(model: Model, names: { string }): { BasePart }
 	return found
 end
 
+-- buildAnim: builds the species-specific idle animation for a brainrot id.
+-- Returns the Anim, or nil for an unknown id.
 local function buildAnim(model: Model, id: string): Anim?
 	if id == "ikan_terbang" then
 		return makeAnim("fish", collect(model, { "Body", "WingL", "WingR", "WingTipL", "WingTipR" }), 2.2, 1)
@@ -400,12 +432,16 @@ end
 
 local spinAccum: { [Anim]: number } = {}
 
+-- tickSpin: advances the accumulated spin angle of an animation's ring part.
+-- Returns the new angle in radians.
 local function tickSpin(anim: Anim, dt: number): number
 	local now = (spinAccum[anim] or 0) + dt * anim.spin
 	spinAccum[anim] = now
 	return now
 end
 
+-- tickAnim: poses one model's animated parts for time t and spins its ring.
+-- Returns nothing.
 local function tickAnim(anim: Anim, t: number, dt: number)
 	local k = anim.kind
 	local parts = anim.parts
@@ -511,6 +547,8 @@ end
 local spinAccum: { [Anim]: number } = {}
 local idleCursor = 1
 
+-- stepIdle: Heartbeat step that ticks idle models within IDLE_BUDGET and prunes dead entries.
+-- Returns nothing.
 local function stepIdle(dt: number)
 	local budget = IDLE_BUDGET
 	local t = os.clock()
@@ -557,6 +595,8 @@ local function stepIdle(dt: number)
 end
 
 -- === idle animation ===
+-- startIdle: connects the Heartbeat idle ticker once.
+-- Returns nothing.
 local function startIdle()
 	if idleTicker then
 		return
@@ -565,6 +605,8 @@ local function startIdle()
 end
 
 -- === public api ===
+-- Factory.animate: registers a model for idle animation by its BrainrotId attribute.
+-- Returns nothing.
 function Factory.animate(model: Model)
 	if idleRecords[model] then
 		return
@@ -582,6 +624,8 @@ function Factory.animate(model: Model)
 	startIdle()
 end
 
+-- Factory.freeze: stops a model's idle animation.
+-- Returns nothing.
 function Factory.freeze(model: Model)
 	if not idleRecords[model] then
 		return
@@ -589,6 +633,8 @@ function Factory.freeze(model: Model)
 	idleRecords[model] = nil
 end
 
+-- Factory.create: builds the full brainrot Model for an entry (parts, scale, effects, sign, welds, idle).
+-- Returns the new Model, placed on the given position.
 function Factory.create(entry: Entry, position: Vector3): Model
 	local model = Instance.new("Model")
 	model.Name = entry.name
@@ -646,12 +692,16 @@ function Factory.create(entry: Entry, position: Vector3): Model
 	return model
 end
 
+-- Factory.standOn: moves a model so its lowest point rests on top of a surface.
+-- Returns nothing.
 function Factory.standOn(model: Model, surface: BasePart)
 	local minV = bodyAABB(model)
 	local surfaceTop = surface.Position.Y + surface.Size.Y / 2
 	model:PivotTo(model:GetPivot() + Vector3.new(0, surfaceTop - minV.Y, 0))
 end
 
+-- addCarryShadow: builds the translucent black CarryShadow disc welded under a carried model.
+-- Returns nothing.
 local function addCarryShadow(model: Model)
 	local anchor = model.PrimaryPart
 	if not anchor then
@@ -680,6 +730,8 @@ local function addCarryShadow(model: Model)
 	weldTo(anchor, shadow)
 end
 
+-- Factory.weldAboveHead: unanchors the model and attaches it above a character's head with a CarryWeld Motor6D.
+-- Returns nothing; reparents the model to the character.
 function Factory.weldAboveHead(model: Model, character: Model)
 	local head = character:FindFirstChild("Head")
 	if not (head and head:IsA("BasePart")) then
@@ -720,6 +772,8 @@ function Factory.weldAboveHead(model: Model, character: Model)
 	addCarryShadow(model)
 end
 
+-- stripCarry: removes the CarryWeld joints and the CarryShadow from a carried model.
+-- Returns nothing.
 local function stripCarry(model: Model, anchor: BasePart)
 	local carry = anchor:FindFirstChild("CarryWeld")
 	if carry then
@@ -738,6 +792,8 @@ local function stripCarry(model: Model, anchor: BasePart)
 	end
 end
 
+-- Factory.drop: releases a carried model, unanchors it and returns it to workspace.
+-- Returns nothing.
 function Factory.drop(model: Model)
 	local anchor = model.PrimaryPart
 	if anchor then
@@ -754,11 +810,15 @@ function Factory.drop(model: Model)
 	model.Parent = workspace
 end
 
+-- Factory.remove: stops idle animation and destroys the model.
+-- Returns nothing.
 function Factory.remove(model: Model)
 	Factory.freeze(model)
 	model:Destroy()
 end
 
+-- Factory.rehangSign: rebuilds the NameSign above the model and welds it to the anchor.
+-- Returns nothing.
 function Factory.rehangSign(model: Model)
 	local anchor = model.PrimaryPart
 	local brainrotId = model:GetAttribute("BrainrotId")

@@ -1,6 +1,12 @@
 -- Carry: owns the single brainrot a player holds above their head, its follow loop, and restoring it across respawns.
 -- Server gameplay is authoritative; the client only renders and sends intents.
 -- Public API: Carry.isCarrying, Carry.modelOf, Carry.attach, Carry.release, Carry.takeModel, Carry.clear, Carry.restore, Carry.stop
+-- contract:
+--   Owns: the player->Model held map and one Heartbeat follow connection (lerps unwelded models to head + Config.carryHeight).
+--   attach refuses (returns nil) when the player has no state, is already carrying, has no character, the slot id is not in Cast,
+--   or the model has no PrimaryPart (a freshly built model is destroyed; a passed-in model is not).
+--   On success it sets PlayerState carrying, welds the model above the character's head via Factory.weldAboveHead, and returns the model.
+--   release drops the model, takeModel hands it back (nil if unparented), clear removes it; all three clear PlayerState carrying.
 --!strict
 
 local RunService = game:GetService("RunService")
