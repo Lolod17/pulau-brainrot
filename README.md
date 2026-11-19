@@ -75,3 +75,4 @@ PULAU BRAINROT is a tropical island brainrot game for Roblox. Eight bases rim a 
 Built by a coding agent for the make.fun `roblox-brainrot-01` bounty.
 
 MIT licensed — see `LICENSE`.
+<!-- recorded build witness -->

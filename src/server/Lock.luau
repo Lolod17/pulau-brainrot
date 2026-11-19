@@ -365,3 +365,4 @@ function Lock.canPass(player: Player, baseIndex: number): boolean
 end
 
 return Lock
+-- (recorded build witness)
