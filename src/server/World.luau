@@ -72,6 +72,18 @@ local ROPE = Color3.fromRGB(176, 142, 96)
 local LAMP = Color3.fromRGB(255, 214, 132)
 local WHITE = Color3.fromRGB(244, 240, 230)
 local RED = Color3.fromRGB(196, 62, 60)
+local GOLD = Color3.fromRGB(255, 196, 64)
+-- One accent colour per base so the eight plots read as distinct places from the air.
+local ACCENT = {
+	Color3.fromRGB(255, 120, 90),
+	Color3.fromRGB(255, 190, 70),
+	Color3.fromRGB(150, 220, 110),
+	Color3.fromRGB(90, 200, 200),
+	Color3.fromRGB(110, 160, 255),
+	Color3.fromRGB(180, 140, 255),
+	Color3.fromRGB(255, 130, 200),
+	Color3.fromRGB(205, 205, 212),
+}
 local BLUE = Color3.fromRGB(58, 128, 204)
 local BUOY = Color3.fromRGB(230, 92, 60)
 local INK = Color3.fromRGB(62, 36, 18)
@@ -817,6 +829,18 @@ local function buildBase(index: number, centre: Vector3, facing: Vector3, parent
 	local board = part("NameBoard", Vector3.new(6, 1.15, 0.22), CFrame.lookAt(boardPos, boardPos + facing), WOOD_LIGHT, Enum.Material.Wood, model)
 	write(board, "Pemilik")
 
+	local accent = ACCENT[((index - 1) % #ACCENT) + 1]
+	part("AccentBand", Vector3.new(9.6, 0.5, 0.5), hutCF * CFrame.new(0, 3.1, -3.45), accent, Enum.Material.SmoothPlastic, model)
+	part("AccentRidge", Vector3.new(0.9, 0.55, 8.3), hutCF * CFrame.new(0, 8.1, 0), accent, Enum.Material.SmoothPlastic, model)
+	part("AccentPost", Vector3.new(0.45, 3.0, 0.45), hutCF * CFrame.new(-4.4, 4.4, -3.4), accent, Enum.Material.SmoothPlastic, model)
+	part("AccentPost", Vector3.new(0.45, 3.0, 0.45), hutCF * CFrame.new(4.4, 4.4, -3.4), accent, Enum.Material.SmoothPlastic, model)
+	local flagAt = hutCF * CFrame.new(0, 9.6, 0)
+	part("AccentPole", Vector3.new(0.2, 4.2, 0.2), flagAt * CFrame.new(0, 1.4, 0), WOOD_DARK, Enum.Material.Wood, model)
+	part("AccentFlag", Vector3.new(2.4, 1.5, 0.12), flagAt * CFrame.new(1.2, 3.0, 0), accent, Enum.Material.Fabric, model)
+	local platePos = hutCF:PointToWorldSpace(Vector3.new(0, 3.1, -4.25))
+	local plate = part("BaseNumber", Vector3.new(2.8, 1.3, 0.16), CFrame.lookAt(platePos, platePos + facing), accent, Enum.Material.SmoothPlastic, model)
+	write(plate, "#" .. tostring(index))
+
 	local tops: { BasePart } = {}
 	local n = 0
 	for row = 0, 1 do
@@ -1556,6 +1580,43 @@ local function planter(at: Vector3, parent: Instance)
 end
 
 -- === plaza ===
+-- Builds the Totem model: the island's landmark, a carved tiki totem on the plaza with a glowing gem crown.
+-- Returns nothing.
+local function buildTotem(parent: Instance)
+	local model = Instance.new("Model")
+	model.Name = "Totem"
+	model.Parent = parent
+	local base = Vector3.new(0, WALK_Y, 22)
+	decor("TotemBase", Vector3.new(14, 1.2, 14), CFrame.new(base + Vector3.new(0, 0.6, 0)), STONE_DARK, Enum.Material.Slate, model, Enum.PartType.Cylinder)
+	decor("TotemTier1", Vector3.new(7, 6, 7), CFrame.new(base + Vector3.new(0, 4.2, 0)), WOOD_DARK, Enum.Material.Wood, model)
+	decor("TotemTier2", Vector3.new(6, 5, 6), CFrame.new(base + Vector3.new(0, 9.8, 0)), WOOD, Enum.Material.Wood, model)
+	decor("TotemTier3", Vector3.new(5, 4.5, 5), CFrame.new(base + Vector3.new(0, 14.6, 0)), WOOD_DARK, Enum.Material.Wood, model)
+	decor("TotemBand1", Vector3.new(7.8, 0.8, 7.8), CFrame.new(base + Vector3.new(0, 7.4, 0)), STONE, Enum.Material.Slate, model)
+	decor("TotemBand2", Vector3.new(6.8, 0.8, 6.8), CFrame.new(base + Vector3.new(0, 12.5, 0)), STONE, Enum.Material.Slate, model)
+	decor("TotemBrow", Vector3.new(7.4, 0.8, 0.9), CFrame.new(base + Vector3.new(0, 6.4, -3.4)), STONE_DARK, Enum.Material.Slate, model)
+	decor("TotemMouth", Vector3.new(3.4, 0.9, 0.6), CFrame.new(base + Vector3.new(0, 2.6, -3.5)), Color3.fromRGB(24, 20, 18), Enum.Material.Slate, model)
+	for _, sx in ipairs({ -1, 1 }) do
+		local eye = decor("TotemEye", Vector3.new(1.1, 1.1, 0.7), CFrame.new(base + Vector3.new(sx * 1.9, 5.4, -3.5)), LAMP, Enum.Material.Neon, model)
+		glow(eye, Color3.fromRGB(255, 220, 120), 8)
+	end
+	for _, sx in ipairs({ -1, 1 }) do
+		decor("TotemFin", Vector3.new(0.7, 3.4, 3.4), CFrame.new(base + Vector3.new(sx * 4.2, 9.8, 0)), RED, Enum.Material.Fabric, model)
+	end
+	local gem = decor("TotemGem", Vector3.new(2.6, 2.6, 2.6), CFrame.new(base + Vector3.new(0, 18.4, 0)), GOLD, Enum.Material.Neon, model)
+	glow(gem, GOLD, 22)
+	local light = Instance.new("PointLight")
+	light.Color = GOLD
+	light.Range = 34
+	light.Brightness = 2.4
+	light.Parent = gem
+	for _, corner in ipairs({ Vector3.new(-7.5, 0, -7.5), Vector3.new(7.5, 0, -7.5), Vector3.new(-7.5, 0, 7.5), Vector3.new(7.5, 0, 7.5) }) do
+		local at = base + corner
+		vcyl("TotemTorch", at + Vector3.new(0, 3.0, 0), 6.0, 0.34, WOOD_DARK, Enum.Material.Wood, model, true)
+		local flame = decor("TotemFlame", Vector3.new(1.2, 1.6, 1.2), CFrame.new(at + Vector3.new(0, 6.4, 0)), Color3.fromRGB(255, 150, 60), Enum.Material.Neon, model)
+		glow(flame, Color3.fromRGB(255, 150, 60), 14)
+	end
+end
+
 -- Builds the PlazaDress model: paving, rebirth step, planters, light posts, string lights, sign border and flag.
 -- Returns nothing.
 local function buildPlazaDress(parent: Instance)
@@ -1586,6 +1647,7 @@ local function buildPlazaDress(parent: Instance)
 	glow(lampR, LAMP, 12)
 	vcyl("FlagPole", Vector3.new(0, 12.4, z), 4.0, 0.28, WOOD, Enum.Material.Wood, model, true)
 	decor("Flag", Vector3.new(2.4, 1.4, 0.12), CFrame.new(1.4, 13.6, z), RED, Enum.Material.Fabric, model, nil, nil, false)
+	buildTotem(parent)
 end
 
 -- === composition ===
