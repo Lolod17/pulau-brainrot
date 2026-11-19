@@ -207,26 +207,33 @@ function Hud.build()
 
 	cashPlate = Instance.new("Frame")
 	cashPlate.Name = "CashPlate"
-	cashPlate.Size = UDim2.new(0, 620, 0, 84)
-	cashPlate.Position = UDim2.new(0.5, -310, 1, -196)
+	cashPlate.Size = UDim2.new(0, 300, 0, 74)
+	cashPlate.Position = UDim2.new(0, 14, 0, 12)
 	cashPlate.BackgroundColor3 = Color3.fromRGB(8, 10, 16)
-	cashPlate.BackgroundTransparency = 0.35
+	cashPlate.BackgroundTransparency = 0.3
 	cashPlate.BorderSizePixel = 0
 	cashPlate.Parent = screen
 	local plateCorner = Instance.new("UICorner")
-	plateCorner.CornerRadius = UDim.new(0, 14)
+	plateCorner.CornerRadius = UDim.new(0, 12)
 	plateCorner.Parent = cashPlate
+	local plateStroke = Instance.new("UIStroke")
+	plateStroke.Color = Color3.fromRGB(60, 210, 120)
+	plateStroke.Thickness = 1.5
+	plateStroke.Transparency = 0.55
+	plateStroke.Parent = cashPlate
 
-	cashLabel = makeLabel(screen, "Cash", UDim2.new(0, 600, 0, 56), UDim2.new(0.5, -300, 1, -192), 56, Color3.fromRGB(120, 255, 150))
+	cashLabel = makeLabel(screen, "Cash", UDim2.new(0, 280, 0, 38), UDim2.new(0, 24, 0, 16), 34, Color3.fromRGB(120, 255, 150))
 	cashLabel.Font = Enum.Font.GothamBlack
+	cashLabel.TextXAlignment = Enum.TextXAlignment.Left
 	cashLabel.TextStrokeTransparency = 0.35
-	incomeLabel = makeLabel(screen, "Income", UDim2.new(0, 600, 0, 30), UDim2.new(0.5, -300, 1, -132), 24, Color3.fromRGB(110, 240, 140))
+	incomeLabel = makeLabel(screen, "Income", UDim2.new(0, 280, 0, 20), UDim2.new(0, 24, 0, 50), 17, Color3.fromRGB(110, 240, 140))
 	incomeLabel.Font = Enum.Font.GothamBold
+	incomeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
 	local panel = Instance.new("Frame")
 	panel.Name = "Carrying"
-	panel.Size = UDim2.new(0, 380, 0, 66)
-	panel.Position = UDim2.new(0.5, -190, 1, -268)
+	panel.Size = UDim2.new(0, 300, 0, 60)
+	panel.Position = UDim2.new(0, 14, 1, -78)
 	panel.BackgroundColor3 = Color3.fromRGB(20, 24, 32)
 	panel.BackgroundTransparency = 0.2
 	panel.Visible = false
@@ -244,21 +251,31 @@ function Hud.build()
 
 	local info = Instance.new("Frame")
 	info.Name = "Status"
-	info.Size = UDim2.new(0, 360, 0, 84)
-	info.Position = UDim2.new(1, -376, 1, -286)
-	info.BackgroundTransparency = 1
+	info.Size = UDim2.new(0, 232, 0, 78)
+	info.Position = UDim2.new(1, -246, 0, 12)
+	info.BackgroundColor3 = Color3.fromRGB(8, 10, 16)
+	info.BackgroundTransparency = 0.3
+	info.BorderSizePixel = 0
 	info.Parent = screen
+	local infoCorner = Instance.new("UICorner")
+	infoCorner.CornerRadius = UDim.new(0, 12)
+	infoCorner.Parent = info
+	local infoStroke = Instance.new("UIStroke")
+	infoStroke.Color = Color3.fromRGB(120, 160, 220)
+	infoStroke.Thickness = 1.5
+	infoStroke.Transparency = 0.6
+	infoStroke.Parent = info
 
-	rebirthLabel = makeLabel(info, "Rebirth", UDim2.new(1, 0, 0, 26), UDim2.new(0, 0, 0, 0), 20, Color3.fromRGB(255, 210, 120))
+	rebirthLabel = makeLabel(info, "Rebirth", UDim2.new(1, -20, 0, 22), UDim2.new(0, 10, 0, 6), 16, Color3.fromRGB(255, 210, 120))
 	rebirthLabel.TextXAlignment = Enum.TextXAlignment.Right
 
-	stormLabel = makeLabel(info, "Storm", UDim2.new(1, 0, 0, 26), UDim2.new(0, 0, 0, 28), 22, Color3.fromRGB(160, 200, 255))
+	stormLabel = makeLabel(info, "Storm", UDim2.new(1, -20, 0, 24), UDim2.new(0, 10, 0, 27), 18, Color3.fromRGB(160, 200, 255))
 	stormLabel.TextXAlignment = Enum.TextXAlignment.Right
 
-	lockLabel = makeLabel(info, "Lock", UDim2.new(1, 0, 0, 26), UDim2.new(0, 0, 0, 56), 20, Color3.fromRGB(255, 170, 170))
+	lockLabel = makeLabel(info, "Lock", UDim2.new(1, -20, 0, 22), UDim2.new(0, 10, 0, 50), 16, Color3.fromRGB(120, 230, 150))
 	lockLabel.TextXAlignment = Enum.TextXAlignment.Right
 
-	hintLabel = makeLabel(screen, "Hint", UDim2.new(0, 600, 0, 28), UDim2.new(0.5, -300, 1, -230), 20, Color3.fromRGB(236, 240, 250))
+	hintLabel = makeLabel(screen, "Hint", UDim2.new(0, 620, 0, 26), UDim2.new(0.5, -310, 1, -46), 18, Color3.fromRGB(236, 240, 250))
 
 	local banner = Instance.new("Frame")
 	banner.Name = "StormBanner"
@@ -396,12 +413,15 @@ function Hud.update(state: { [string]: any })
 		if lockUntil then
 			local remain = math.max(0, math.ceil(lockUntil - os.clock()))
 			if remain > 0 then
-				lockLabel.Text = "Base locked: " .. tostring(remain) .. "s"
+				lockLabel.Text = "LOCKED  " .. tostring(remain) .. "s"
+				lockLabel.TextColor3 = Color3.fromRGB(255, 96, 96)
 			else
 				lockLabel.Text = "Base unlocked"
+				lockLabel.TextColor3 = Color3.fromRGB(120, 230, 150)
 			end
 		else
 			lockLabel.Text = "Base unlocked"
+			lockLabel.TextColor3 = Color3.fromRGB(120, 230, 150)
 		end
 	end
 end
