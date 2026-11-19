@@ -186,7 +186,8 @@ local function makeTierLabel(host: BasePart, entry: Cast.Entry): BillboardGui
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "TierLabel"
 	billboard.Size = UDim2.new(0, 108, 0, 34)
-	billboard.StudsOffsetWorldSpace = Vector3.new(0, (entry.height or 4) + 2.0, 0)
+	local stagger = (math.floor(math.abs(host.Position.X) * 3) % 3) * 1.4
+	billboard.StudsOffsetWorldSpace = Vector3.new(0, (entry.height or 4) + 2.0 + stagger, 0)
 	billboard.AlwaysOnTop = false
 	billboard.MaxDistance = 78
 	billboard.LightInfluence = 0

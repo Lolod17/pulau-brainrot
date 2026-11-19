@@ -268,18 +268,18 @@ end
 -- Builds the island lighting: sets Lighting properties, replaces sky and post effects, flags LightingOk, drops the Baseplate.
 -- Returns nothing.
 local function applyLighting()
-	Lighting.ClockTime = 14.2
-	Lighting.Brightness = 3.2
-	Lighting.Ambient = Color3.fromRGB(158, 184, 204)
-	Lighting.OutdoorAmbient = Color3.fromRGB(168, 194, 214)
-	Lighting.EnvironmentDiffuseScale = 0.35
+	Lighting.ClockTime = 15.4
+	Lighting.Brightness = 2.4
+	Lighting.Ambient = Color3.fromRGB(96, 112, 138)
+	Lighting.OutdoorAmbient = Color3.fromRGB(186, 190, 178)
+	Lighting.EnvironmentDiffuseScale = 0.45
 	Lighting.EnvironmentSpecularScale = 0.5
-	Lighting.ShadowSoftness = 0.25
-	Lighting.ExposureCompensation = 0.1
+	Lighting.ShadowSoftness = 0.3
+	Lighting.ExposureCompensation = 0.25
 	Lighting.GlobalShadows = true
-	Lighting.FogStart = 520
-	Lighting.FogEnd = 1100
-	Lighting.FogColor = Color3.fromRGB(186, 216, 232)
+	Lighting.FogStart = 300
+	Lighting.FogEnd = 950
+	Lighting.FogColor = Color3.fromRGB(191, 227, 232)
 
 	local effectClasses = { "Atmosphere", "BloomEffect", "ColorCorrectionEffect", "SunRaysEffect", "DepthOfFieldEffect" }
 	for _, child in Lighting:GetChildren() do
@@ -297,26 +297,26 @@ local function applyLighting()
 
 	pcall(function()
 		local atmosphere = Instance.new("Atmosphere")
-		atmosphere.Density = 0.2
-		atmosphere.Offset = 0.12
-		atmosphere.Haze = 1.3
-		atmosphere.Glare = 0.15
-		atmosphere.Color = Color3.fromRGB(176, 208, 228)
-		atmosphere.Decay = Color3.fromRGB(214, 196, 158)
+		atmosphere.Density = 0.32
+		atmosphere.Offset = 0.1
+		atmosphere.Haze = 2.0
+		atmosphere.Glare = 0.1
+		atmosphere.Color = Color3.fromRGB(191, 227, 232)
+		atmosphere.Decay = Color3.fromRGB(126, 154, 134)
 		atmosphere.Parent = Lighting
 	end)
 	pcall(function()
 		local bloom = Instance.new("BloomEffect")
-		bloom.Intensity = 0.15
-		bloom.Size = 12
+		bloom.Intensity = 0.55
+		bloom.Size = 16
 		bloom.Parent = Lighting
 	end)
 	pcall(function()
 		local colorCorrection = Instance.new("ColorCorrectionEffect")
-		colorCorrection.Saturation = 0.12
-		colorCorrection.Contrast = 0.05
-		colorCorrection.Brightness = 0.02
-		colorCorrection.TintColor = Color3.fromRGB(255, 246, 232)
+		colorCorrection.Saturation = -0.08
+		colorCorrection.Contrast = 0.07
+		colorCorrection.Brightness = 0.01
+		colorCorrection.TintColor = Color3.fromRGB(255, 246, 236)
 		colorCorrection.Parent = Lighting
 	end)
 	pcall(function()
@@ -352,8 +352,6 @@ local function applyLighting()
 		and counts.SunRaysEffect >= 1
 		and counts.DepthOfFieldEffect >= 1
 	workspace:SetAttribute("LightingOk", lightingOk)
-
-	Lighting.Brightness = 3.6
 
 	local baseplate = workspace:FindFirstChild("Baseplate")
 	if baseplate and baseplate:IsA("BasePart") then
@@ -863,6 +861,11 @@ local function buildBase(index: number, centre: Vector3, facing: Vector3, parent
 	local platePos = hutCF:PointToWorldSpace(Vector3.new(0, 3.1, -4.25))
 	local plate = part("BaseNumber", Vector3.new(2.8, 1.3, 0.16), CFrame.lookAt(platePos, platePos + facing), accent, Enum.Material.SmoothPlastic, model)
 	write(plate, "#" .. tostring(index))
+
+	local gateAt = Vector3.new(centre.X + facing.X * 14, PLOT_Y, centre.Z + facing.Z * 14)
+	vcyl("GatePost", gateAt + Vector3.new(0, 2.6, 0), 5.2, 0.34, WOOD_DARK, Enum.Material.Wood, model, true)
+	local gateSign = part("GateNumber", Vector3.new(4.4, 2.2, 0.2), CFrame.lookAt(gateAt + Vector3.new(0, 5.6, 0), gateAt + Vector3.new(0, 5.6, 0) + facing), accent, Enum.Material.SmoothPlastic, model)
+	write(gateSign, "#" .. tostring(index))
 
 	local tops: { BasePart } = {}
 	local n = 0
@@ -1703,6 +1706,20 @@ local function buildComposition(parent: Instance)
 	for step = 0, 7 do
 		local angle = (step / 8) * math.pi * 2
 		planter(Vector3.new(math.cos(angle) * 13.5, WALK_Y, 22 + math.sin(angle) * 13.5), model)
+	end
+	local horizon = {
+		{ Vector3.new(-720, 0, 300), 1.35 },
+		{ Vector3.new(620, 0, -540), 1.05 },
+		{ Vector3.new(180, 0, 790), 1.20 },
+		{ Vector3.new(-520, 0, -640), 0.9 },
+	}
+	for _, spec in ipairs(horizon) do
+		local at: Vector3 = spec[1]
+		local scale: number = spec[2]
+		local haze = Color3.fromRGB(150, 196, 190)
+		decor("FarIsland", Vector3.new(210 * scale, 1.5, 150 * scale), CFrame.new(at), Color3.fromRGB(196, 214, 176), Enum.Material.Sand, model)
+		decor("FarHill", Vector3.new(120 * scale, 46 * scale, 96 * scale), CFrame.new(at + Vector3.new(-40 * scale, 20 * scale, 0)), haze, Enum.Material.Grass, model)
+		decor("FarHill", Vector3.new(86 * scale, 30 * scale, 70 * scale), CFrame.new(at + Vector3.new(46 * scale, 13 * scale, 18 * scale)), Color3.fromRGB(138, 184, 178), Enum.Material.Grass, model)
 	end
 	for _, z in ipairs({ 52, 76, 100, 124 }) do
 		buildLanternPost(Vector3.new(-7.5, GRASS_Y, z), model)
