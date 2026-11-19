@@ -185,10 +185,10 @@ local function makeTierLabel(host: BasePart, entry: Cast.Entry): BillboardGui
 	local accent = RARITY_COLOR[entry.rarity] or Color3.fromRGB(198, 204, 214)
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "TierLabel"
-	billboard.Size = UDim2.new(0, 132, 0, 40)
-	billboard.StudsOffsetWorldSpace = Vector3.new(0, (entry.height or 4) + 2.2, 0)
+	billboard.Size = UDim2.new(0, 108, 0, 34)
+	billboard.StudsOffsetWorldSpace = Vector3.new(0, (entry.height or 4) + 2.0, 0)
 	billboard.AlwaysOnTop = false
-	billboard.MaxDistance = 130
+	billboard.MaxDistance = 78
 	billboard.LightInfluence = 0
 	billboard.ResetOnSpawn = false
 	billboard.Adornee = host

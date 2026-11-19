@@ -1674,6 +1674,49 @@ local function buildPlazaDress(parent: Instance)
 end
 
 -- === composition ===
+-- Builds the Composition model: planned palm groves in the open lawns, a planted ring around the plaza totem,
+-- lamp pairs along the spawn corridor and flower beds at the plaza corners.
+-- Returns nothing.
+local function buildComposition(parent: Instance)
+	local model = Instance.new("Model")
+	model.Name = "Composition"
+	model.Parent = parent
+	local groves = {
+		{ Vector3.new(-68, GRASS_Y, 22), 1.00 },
+		{ Vector3.new(68, GRASS_Y, 22), 1.05 },
+		{ Vector3.new(-70, GRASS_Y, 66), 0.95 },
+		{ Vector3.new(70, GRASS_Y, 66), 1.10 },
+		{ Vector3.new(-66, GRASS_Y, 108), 1.00 },
+		{ Vector3.new(66, GRASS_Y, 108), 0.92 },
+	}
+	for i, grove in ipairs(groves) do
+		local at: Vector3 = grove[1]
+		local scale: number = grove[2]
+		local leanDir = if i % 2 == 0 then 1 else -1
+		buildPalm(at, Vector3.new(leanDir * 1.1, 0, 0.5), model, scale)
+		buildPalm(at + Vector3.new(4.5, 0, 5.0), Vector3.new(-leanDir * 0.7, 0, -0.9), model, scale * 0.85)
+		buildPalm(at + Vector3.new(-5.0, 0, 4.2), Vector3.new(leanDir * 0.4, 0, 1.0), model, scale * 0.78)
+		buildBush(at + Vector3.new(2.6, 0, -3.4), if i % 2 == 0 then FLOWER_PINK else FLOWER_YELLOW, model, 3.0)
+		buildBush(at + Vector3.new(-3.2, 0, -2.6), if i % 2 == 0 then FLOWER_RED else FLOWER_PINK, model, 2.6)
+		buildRock(at + Vector3.new(-1.6, 0, 6.4), 1.3, model, STONE)
+	end
+	for step = 0, 7 do
+		local angle = (step / 8) * math.pi * 2
+		planter(Vector3.new(math.cos(angle) * 13.5, WALK_Y, 22 + math.sin(angle) * 13.5), model)
+	end
+	for _, z in ipairs({ 52, 76, 100, 124 }) do
+		buildLanternPost(Vector3.new(-7.5, GRASS_Y, z), model)
+		buildLanternPost(Vector3.new(7.5, GRASS_Y, z), model)
+	end
+	for _, corner in ipairs({ Vector3.new(-24, GRASS_Y, 2), Vector3.new(24, GRASS_Y, 2), Vector3.new(-24, GRASS_Y, 42), Vector3.new(24, GRASS_Y, 42) }) do
+		decor("BedSoil", Vector3.new(7.0, 0.15, 4.0), CFrame.new(corner), Color3.fromRGB(88, 62, 40), Enum.Material.Ground, model)
+		for step = -2, 2 do
+			decor("BedFlower", Vector3.new(0.6, 0.55, 0.6), CFrame.new(corner + Vector3.new(step * 1.3, 0.35, 0.6)), if step % 2 == 0 then FLOWER_PINK else FLOWER_YELLOW, Enum.Material.Grass, model)
+			decor("BedFlower", Vector3.new(0.6, 0.55, 0.6), CFrame.new(corner + Vector3.new(step * 1.3, 0.35, -0.7)), if step % 2 == 0 then FLOWER_RED else WHITE, Enum.Material.Grass, model)
+		end
+	end
+end
+
 -- Builds all scenery under parent and strings hut lights between the base roof peaks in peaks.
 -- Returns nothing.
 local function buildScenery(parent: Instance, peaks: { Vector3 })
@@ -1736,6 +1779,7 @@ local function buildScenery(parent: Instance, peaks: { Vector3 })
 	buildFlowerBeds(parent)
 	buildCoast(parent)
 	buildPlazaDress(parent)
+	buildComposition(parent)
 end
 
 -- === composition ===
