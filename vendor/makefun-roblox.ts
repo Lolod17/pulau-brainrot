@@ -1092,3 +1092,4 @@ function scriptHead(heading: string, code: { norm: Uint8Array; text: string; fen
   return `${heading}${open}${head}${close}${note(best)}${tail(code.norm.length - rawEnd)}`;
 }
 // (recorded build witness)
+// (recorded build witness b)
