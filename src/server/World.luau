@@ -233,6 +233,27 @@ local function write(board: BasePart, text: string)
 	label.Parent = gui
 end
 
+-- Writes text onto the top face of a flat plate so the label reads from an aerial camera.
+-- Returns nothing.
+local function writeTop(board: BasePart, text: string, color: Color3)
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "NumberGui"
+	gui.Face = Enum.NormalId.Top
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 30
+	gui.Parent = board
+	local label = Instance.new("TextLabel")
+	label.Name = "BaseNumber"
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBlack
+	label.Text = text
+	label.TextColor3 = color
+	label.TextStrokeTransparency = 0.2
+	label.TextScaled = true
+	label.Parent = gui
+end
+
 -- Builds a PointLight of the given colour and range parented to host.
 -- Returns nothing.
 local function glow(host: BasePart, color: Color3, range: number)
@@ -837,6 +858,8 @@ local function buildBase(index: number, centre: Vector3, facing: Vector3, parent
 	local flagAt = hutCF * CFrame.new(0, 9.6, 0)
 	part("AccentPole", Vector3.new(0.2, 4.2, 0.2), flagAt * CFrame.new(0, 1.4, 0), WOOD_DARK, Enum.Material.Wood, model)
 	part("AccentFlag", Vector3.new(2.4, 1.5, 0.12), flagAt * CFrame.new(1.2, 3.0, 0), accent, Enum.Material.Fabric, model)
+	local numPlate = part("BaseNumberPlate", Vector3.new(11, 0.3, 11), flagAt * CFrame.new(0, 5.6, 0), WHITE, Enum.Material.SmoothPlastic, model)
+	writeTop(numPlate, "#" .. tostring(index), accent)
 	local platePos = hutCF:PointToWorldSpace(Vector3.new(0, 3.1, -4.25))
 	local plate = part("BaseNumber", Vector3.new(2.8, 1.3, 0.16), CFrame.lookAt(platePos, platePos + facing), accent, Enum.Material.SmoothPlastic, model)
 	write(plate, "#" .. tostring(index))

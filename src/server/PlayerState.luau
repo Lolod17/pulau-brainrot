@@ -25,6 +25,7 @@ export type State = {
 	baseIndex: number?,
 	slots: { Slot? },
 	carrying: Slot?,
+	tutorialDone: boolean,
 	userId: number,
 }
 
@@ -63,9 +64,13 @@ function PlayerState.create(player: any, loaded: { [string]: any }?): State
 		baseIndex = nil,
 		slots = blankSlots(),
 		carrying = nil,
+		tutorialDone = false,
 		userId = if typeof(player) == "Instance" then player.UserId else (player.UserId or 0),
 	}
 	if loaded then
+		if loaded.tutorialDone == true then
+			state.tutorialDone = true
+		end
 		if typeof(loaded.cash) == "number" then
 			state.cash = math.max(0, math.floor(loaded.cash))
 		end
@@ -242,6 +247,7 @@ function PlayerState.serialize(player: any): { [string]: any }?
 		baseIndex = state.baseIndex or 0,
 		slots = slots,
 		carrying = carrying,
+		tutorialDone = state.tutorialDone == true,
 		incomeRate = PlayerState.placedIncome(player) * PlayerState.incomeMultiplier(player),
 	}
 end
@@ -261,6 +267,17 @@ function PlayerState.slotFromEntry(entry: Cast.Entry): Slot
 		income = entry.income,
 		price = entry.price,
 	}
+end
+
+-- Marks the first-run tutorial as completed for this player so the hints stop appearing.
+-- Returns: true when the flag changed from false to true.
+function PlayerState.markTutorial(player: any): boolean
+	local state = byPlayer[player]
+	if not state or state.tutorialDone then
+		return false
+	end
+	state.tutorialDone = true
+	return true
 end
 
 return PlayerState

@@ -56,6 +56,7 @@ local rebirthLabel: TextLabel? = nil
 local stormLabel: TextLabel? = nil
 local lockLabel: TextLabel? = nil
 local hintLabel: TextLabel? = nil
+local tutorialLabel: TextLabel? = nil
 local bannerFrame: Frame? = nil
 local bannerLabel: TextLabel? = nil
 local alertStack: Frame? = nil
@@ -277,6 +278,26 @@ function Hud.build()
 
 	hintLabel = makeLabel(screen, "Hint", UDim2.new(0, 620, 0, 26), UDim2.new(0.5, -310, 1, -46), 18, Color3.fromRGB(236, 240, 250))
 
+	local tuto = Instance.new("Frame")
+	tuto.Name = "Tutorial"
+	tuto.Size = UDim2.new(0, 420, 0, 46)
+	tuto.Position = UDim2.new(0.5, -210, 1, -104)
+	tuto.BackgroundColor3 = Color3.fromRGB(16, 34, 52)
+	tuto.BackgroundTransparency = 0.15
+	tuto.BorderSizePixel = 0
+	tuto.Visible = false
+	tuto.Parent = screen
+	local tutoCorner = Instance.new("UICorner")
+	tutoCorner.CornerRadius = UDim.new(0, 10)
+	tutoCorner.Parent = tuto
+	local tutoStroke = Instance.new("UIStroke")
+	tutoStroke.Color = Color3.fromRGB(120, 200, 255)
+	tutoStroke.Thickness = 1.5
+	tutoStroke.Transparency = 0.35
+	tutoStroke.Parent = tuto
+	tutorialLabel = makeLabel(tuto, "TutorialText", UDim2.new(1, -20, 1, 0), UDim2.new(0, 10, 0, 0), 17, Color3.fromRGB(226, 240, 255))
+	tutorialLabel.Font = Enum.Font.GothamBold
+
 	local banner = Instance.new("Frame")
 	banner.Name = "StormBanner"
 	banner.Size = UDim2.new(0.7, 0, 0, 110)
@@ -422,6 +443,20 @@ function Hud.update(state: { [string]: any })
 		else
 			lockLabel.Text = "Base unlocked"
 			lockLabel.TextColor3 = Color3.fromRGB(120, 230, 150)
+		end
+	end
+	if tutorialLabel and tutorialLabel.Parent then
+		local frame = tutorialLabel.Parent
+		if state.tutorialDone == true then
+			frame.Visible = false
+		elseif state.carrying then
+			frame.Visible = true
+			tutorialLabel.Text = "Bawa ke base, tahan [E] di pedestal"
+		elseif (state.incomeRate or 0) > 0 then
+			frame.Visible = false
+		else
+			frame.Visible = true
+			tutorialLabel.Text = "Ambil brainrot di dermaga (utara pulau)"
 		end
 	end
 end

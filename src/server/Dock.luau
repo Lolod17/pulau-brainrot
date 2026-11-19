@@ -25,6 +25,9 @@ local RARE_OR_BETTER: { [string]: boolean } = {
 }
 
 local RARITY_COLOR: { [string]: Color3 } = {
+	Common = Color3.fromRGB(198, 204, 214),
+	Uncommon = Color3.fromRGB(64, 200, 140),
+	Rare = Color3.fromRGB(64, 150, 255),
 	Epic = Color3.fromRGB(186, 110, 255),
 	Legendary = Color3.fromRGB(255, 150, 48),
 	Mythic = Color3.fromRGB(230, 48, 48),
@@ -176,6 +179,62 @@ local function flourish(model: Model, entry: Cast.Entry)
 end
 
 -- === dock spots ===
+-- Adds a floating name and rarity plate above a docked brainrot so players can read the tier from the pier.
+-- Returns: the new BillboardGui.
+local function makeTierLabel(host: BasePart, entry: Cast.Entry): BillboardGui
+	local accent = RARITY_COLOR[entry.rarity] or Color3.fromRGB(198, 204, 214)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "TierLabel"
+	billboard.Size = UDim2.new(0, 132, 0, 40)
+	billboard.StudsOffsetWorldSpace = Vector3.new(0, (entry.height or 4) + 2.2, 0)
+	billboard.AlwaysOnTop = false
+	billboard.MaxDistance = 130
+	billboard.LightInfluence = 0
+	billboard.ResetOnSpawn = false
+	billboard.Adornee = host
+	billboard.Parent = host
+
+	local plate = Instance.new("Frame")
+	plate.Size = UDim2.fromScale(1, 1)
+	plate.BackgroundColor3 = Color3.fromRGB(12, 14, 20)
+	plate.BackgroundTransparency = 0.22
+	plate.BorderSizePixel = 0
+	plate.Parent = billboard
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = plate
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = accent
+	stroke.Thickness = 1.6
+	stroke.Transparency = 0.15
+	stroke.Parent = plate
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, -8, 0, 20)
+	title.Position = UDim2.new(0, 4, 0, 2)
+	title.BackgroundTransparency = 1
+	title.Font = Enum.Font.GothamBold
+	title.TextScaled = false
+	title.TextSize = 15
+	title.TextColor3 = Color3.fromRGB(244, 246, 252)
+	title.TextStrokeTransparency = 0.4
+	title.Text = entry.name
+	title.Parent = plate
+
+	local tier = Instance.new("TextLabel")
+	tier.Size = UDim2.new(1, -8, 0, 16)
+	tier.Position = UDim2.new(0, 4, 0, 21)
+	tier.BackgroundTransparency = 1
+	tier.Font = Enum.Font.GothamBold
+	tier.TextSize = 13
+	tier.TextColor3 = accent
+	tier.TextStrokeTransparency = 0.5
+	tier.Text = string.upper(entry.rarity)
+	tier.Parent = plate
+
+	return billboard
+end
+
 -- Adds an instant "Take" prompt to a docked brainrot's root part.
 -- Returns: the new ProximityPrompt.
 local function makePrompt(host: BasePart): ProximityPrompt
@@ -263,6 +322,7 @@ function Dock.spawnOne(rng: Random?): Model?
 	if root then
 		root.Anchored = true
 		makePrompt(root)
+		makeTierLabel(root, entry)
 	end
 	spot.model = model
 	if RARE_OR_BETTER[entry.rarity] then

@@ -410,6 +410,7 @@ local function place(player: Player, visual: Visual): boolean
 		Factory.remove(model)
 	end
 	showSlot(visual, slot)
+	PlayerState.markTutorial(player)
 	return true
 end
 

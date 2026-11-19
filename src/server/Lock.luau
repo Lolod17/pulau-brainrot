@@ -8,6 +8,7 @@
 --!strict
 
 local ProximityPromptService = game:GetService("ProximityPromptService")
+local TweenService = game:GetService("TweenService")
 
 local Config = require(script.Parent:WaitForChild("Config"))
 local Bases = require(script.Parent:WaitForChild("Bases"))
@@ -43,6 +44,96 @@ local function fenceParts(model: Instance): { BasePart }
 	return parts
 end
 
+-- Builds (once) and returns the four decorative neon beams that mark a locked base.
+-- Returns: the list of beams, empty when the base has no plot part.
+local gateBars: { [number]: { BasePart } } = {}
+local lockSigns: { [number]: BillboardGui } = {}
+
+local function ensureGate(record: any): { BasePart }
+	local cached = gateBars[record.index]
+	if cached and cached[1] and cached[1].Parent then
+		return cached
+	end
+	local model = record.model
+	local plot = model and model:FindFirstChild("Plot")
+	if not plot then
+		return {}
+	end
+	local size = plot.Size
+	local centre = plot.Position
+	local bars = {}
+	local function beam(name: string, beamSize: Vector3, offset: Vector3)
+		local beamPart = Instance.new("Part")
+		beamPart.Name = name
+		beamPart.Size = beamSize
+		beamPart.CFrame = CFrame.new(centre + offset)
+		beamPart.Anchored = true
+		beamPart.CanCollide = false
+		beamPart.CanQuery = false
+		beamPart.CanTouch = false
+		beamPart.Material = Enum.Material.Neon
+		beamPart.Color = Color3.fromRGB(255, 92, 92)
+		beamPart.Transparency = 1
+		beamPart.Parent = model
+		table.insert(bars, beamPart)
+	end
+	beam("GateBarN", Vector3.new(size.X, 0.7, 0.7), Vector3.new(0, 6, -size.Z / 2))
+	beam("GateBarS", Vector3.new(size.X, 0.7, 0.7), Vector3.new(0, 6, size.Z / 2))
+	beam("GateBarW", Vector3.new(0.7, 0.7, size.Z), Vector3.new(-size.X / 2, 6, 0))
+	beam("GateBarE", Vector3.new(0.7, 0.7, size.Z), Vector3.new(size.X / 2, 6, 0))
+	for _, corner in ipairs({ Vector3.new(-1, 0, -1), Vector3.new(1, 0, -1), Vector3.new(-1, 0, 1), Vector3.new(1, 0, 1) }) do
+		beam("GatePost", Vector3.new(0.7, 7.5, 0.7), Vector3.new(corner.X * size.X / 2, 4.2, corner.Z * size.Z / 2))
+	end
+	gateBars[record.index] = bars
+	local sign = Instance.new("BillboardGui")
+	sign.Name = "LockSign"
+	sign.Size = UDim2.new(0, 150, 0, 40)
+	sign.StudsOffsetWorldSpace = Vector3.new(0, 12, 0)
+	sign.AlwaysOnTop = false
+	sign.MaxDistance = 160
+	sign.LightInfluence = 0
+	sign.Adornee = plot
+	sign.Enabled = false
+	sign.Parent = model
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.fromScale(1, 1)
+	frame.BackgroundColor3 = Color3.fromRGB(28, 8, 8)
+	frame.BackgroundTransparency = 0.15
+	frame.BorderSizePixel = 0
+	frame.Parent = sign
+	local frameCorner = Instance.new("UICorner")
+	frameCorner.CornerRadius = UDim.new(0, 8)
+	frameCorner.Parent = frame
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(255, 92, 92)
+	stroke.Thickness = 2
+	stroke.Parent = frame
+	local text = Instance.new("TextLabel")
+	text.Size = UDim2.fromScale(1, 1)
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.GothamBlack
+	text.TextSize = 22
+	text.TextColor3 = Color3.fromRGB(255, 120, 120)
+	text.TextStrokeTransparency = 0.3
+	text.Text = "LOCKED"
+	text.Parent = frame
+	lockSigns[record.index] = sign
+	return bars
+end
+
+-- Fades the lock beams in or out. Purely visual: solidity stays with applySolid.
+-- Returns: nothing.
+local function animateGate(record: any, solid: boolean)
+	for _, beamPart in ensureGate(record) do
+		local goal = solid and 0.0 or 1
+		TweenService:Create(beamPart, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Transparency = goal }):Play()
+	end
+	local sign = lockSigns[record.index]
+	if sign then
+		sign.Enabled = solid
+	end
+end
+
 -- Makes a base's fence solid while locked, or restores the parts it had made solid.
 -- Returns: nothing.
 local function applySolid(record: any, solid: boolean)
@@ -61,6 +152,7 @@ local function applySolid(record: any, solid: boolean)
 			end
 		end
 	end
+	animateGate(record, solid)
 end
 
 -- Finds or builds the hidden countdown billboard for a base.
